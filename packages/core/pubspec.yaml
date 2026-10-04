@@ -5,10 +5,12 @@ version: 0.0.1
 resolution: workspace
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.13.0
 
 dependencies:
   crypto: ^3.0.7
+  meta: ^1.19.0
+  path: ^1.9.1
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   shelf_web_socket: ^3.0.0
