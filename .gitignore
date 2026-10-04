@@ -1,0 +1,32 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+pubspec_overrides.yaml
+*.iml
+.idea/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Platform build output
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/release/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+
+# Signing material — never commit
+*.jks
+*.keystore
+key.properties
+
+# OS
+.DS_Store
+Thumbs.db
+.md
+!README.md
+
+# Private planning and assistant notes (kept local)
+CLAUDE.md
+PRD_file_sharing_app.md

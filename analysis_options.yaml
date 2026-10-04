@@ -1,0 +1,11 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # Project rule: comments only where needed, so no doc comment on every public member.
+    public_member_api_docs: false

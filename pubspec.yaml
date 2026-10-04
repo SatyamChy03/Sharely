@@ -1,0 +1,29 @@
+name: sharely_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+workspace:
+  - packages/core
+  - apps/sharely
+
+dev_dependencies:
+  melos: ^8.9.0
+  very_good_analysis: ^11.0.0
+
+melos:
+  scripts:
+    analyze:
+      run: dart analyze .
+      description: Static analysis for all packages.
+    format:
+      run: dart format .
+      description: Format all Dart code.
+    test:core:
+      exec:
+        command: dart test
+        concurrency: 1
+      packageFilters:
+        scope: sharely_core
+      description: Run sharely_core unit tests.
