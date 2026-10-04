@@ -4,7 +4,7 @@ Send files, photos, text, links and clipboard content between your phone and lap
 
 **Install, scan, send:** the laptop shows a QR code, the phone scans it, and the two devices stay paired.
 
-> **Status:** early development (Week 0). The product spec is in [PRD_file_sharing_app.md](PRD_file_sharing_app.md).
+> **Status:** early development. The app foundation and the Welcome screen are in place; file transfer is next.
 
 ## Platforms
 
@@ -43,8 +43,7 @@ Flutter/Dart for every platform in a [Melos](https://melos.invertase.dev) monore
 │       │   └── security/   # certificate generation and fingerprint pinning
 │       └── test/
 ├── pubspec.yaml            # workspace root + Melos scripts
-├── analysis_options.yaml
-└── PRD_file_sharing_app.md
+└── analysis_options.yaml
 ```
 
 Business logic lives in `packages/core`, so it can be unit-tested without a device. `apps/sharely` holds the UI and platform-specific code: mDNS, file pickers, share sheet, tray, and window.
@@ -66,7 +65,6 @@ Run `flutter doctor` to check your setup.
 dart pub get          # resolves all workspace packages
 ```
 
-The Flutter app hasn't been generated yet. See [apps/sharely/README.md](apps/sharely/README.md) for the one-time `flutter create` step.
 
 ### Common commands
 
@@ -79,8 +77,9 @@ melos run test:core   # run sharely_core unit tests
 cd packages/core && dart test test/<file>_test.dart
 cd packages/core && dart test --name "<test name>"
 
-# run the app (once generated)
+# run the app
 cd apps/sharely && flutter run -d linux     # or -d windows / an Android device id
+cd apps/sharely && flutter test             # app widget tests
 ```
 
 ## Roadmap

@@ -1,0 +1,18 @@
+name: sharely_core
+description: Pure-Dart core for Sharely — protocol, transfer engine, pairing, embedded server, TLS pinning.
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  crypto: ^3.0.7
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  shelf_web_socket: ^3.0.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^11.0.0
