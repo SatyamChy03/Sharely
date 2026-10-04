@@ -1,0 +1,48 @@
+name: sharely
+description: Send files, text, links and clipboard between phone and laptop over local Wi-Fi.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_animate: ^4.5.2
+  flutter_riverpod: ^3.4.3
+  gap: ^3.0.1
+  go_router: ^18.0.2
+  logging: ^1.3.0
+  lucide_icons_flutter: ^3.1.21
+  sharely_core:
+    path: ../../packages/core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^11.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Geist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Geist-ExtraBold.ttf
+          weight: 800
+    - family: GeistMono
+      fonts:
+        - asset: assets/fonts/GeistMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/GeistMono-SemiBold.ttf
+          weight: 600
