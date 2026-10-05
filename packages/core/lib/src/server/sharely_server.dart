@@ -1,11 +1,20 @@
 import 'dart:io';
 
 import 'package:sharely_core/src/server/pairing_request_handler.dart';
+import 'package:sharely_core/src/server/request_authenticator.dart';
+import 'package:sharely_core/src/server/transfer_receiver.dart';
+import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 const defaultSharelyPort = 53891;
+
+/// Routes that only paired devices may use.
+typedef TransferRoutes = ({
+  TransferReceiver receiver,
+  PairedDeviceLookup findPairedDevice,
+});
 
 /// The laptop's embedded HTTP server, bound to one LAN address only.
 class SharelyServer {
@@ -22,9 +31,11 @@ class SharelyServer {
   static Future<SharelyServer> start({
     required InternetAddress address,
     required PairingRequestHandler pairingHandler,
+    TransferRoutes? transfers,
     int preferredPort = defaultSharelyPort,
   }) async {
     final router = Router()..post('/v1/pair', pairingHandler.handle);
+    if (transfers != null) _addTransferRoutes(router, transfers);
     final handler = const Pipeline()
         .addMiddleware(_noStoreHeaders)
         .addHandler(router.call);
@@ -53,6 +64,21 @@ class SharelyServer {
     server.idleTimeout = const Duration(seconds: 30);
     return server;
   }
+}
+
+void _addTransferRoutes(Router router, TransferRoutes transfers) {
+  final pairedOnly = const Pipeline().addMiddleware(
+    requirePairedDevice(transfers.findPairedDevice),
+  );
+  router
+    ..get(
+      controlChannelPath,
+      pairedOnly.addHandler(transfers.receiver.hub.handleUpgrade),
+    )
+    ..put(
+      '/v1/transfers/<transferId>/<fileIndex>',
+      pairedOnly.addHandler(transfers.receiver.handleUpload),
+    );
 }
 
 Handler _noStoreHeaders(Handler inner) {
