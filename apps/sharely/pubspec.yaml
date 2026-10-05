@@ -9,6 +9,7 @@ environment:
   flutter: ">=3.47.0"
 
 dependencies:
+  device_info_plus: ^13.3.0
   flutter:
     sdk: flutter
   flutter_animate: ^4.5.2
@@ -17,6 +18,9 @@ dependencies:
   go_router: ^18.0.2
   logging: ^1.3.0
   lucide_icons_flutter: ^3.1.21
+  mobile_scanner: ^7.4.2
+  permission_handler: ^13.0.2
+  pretty_qr_code: ^3.6.0
   sharely_core:
     path: ../../packages/core
 

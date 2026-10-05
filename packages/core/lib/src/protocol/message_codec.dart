@@ -17,7 +17,7 @@ abstract final class MessageCodec {
     if (frame.length > ProtocolLimits.maxMessageChars) {
       throw const ProtocolException('Message is too large');
     }
-    final fields = JsonFields(_decodeObject(frame));
+    final fields = JsonFields(decodeJsonObject(frame));
     final type = MessageType.fromWireName(fields.string('type', maxLength: 32));
     return switch (type) {
       MessageType.hello => HelloMessage.fromFields(fields),
@@ -30,18 +30,5 @@ abstract final class MessageCodec {
       MessageType.clipboard => TextContentMessage.fromFields(type, fields),
       MessageType.link => LinkMessage.fromFields(fields),
     };
-  }
-
-  static Map<String, Object?> _decodeObject(String frame) {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(frame);
-    } on FormatException {
-      throw const ProtocolException('Message is not valid JSON');
-    }
-    if (decoded is! Map<String, Object?>) {
-      throw const ProtocolException('Message must be a JSON object');
-    }
-    return decoded;
   }
 }

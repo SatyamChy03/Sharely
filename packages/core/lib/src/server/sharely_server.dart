@@ -1,0 +1,63 @@
+import 'dart:io';
+
+import 'package:sharely_core/src/server/pairing_request_handler.dart';
+import 'package:shelf/shelf.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_router/shelf_router.dart';
+
+const defaultSharelyPort = 53891;
+
+/// The laptop's embedded HTTP server, bound to one LAN address only.
+class SharelyServer {
+  new _(this._server);
+
+  final HttpServer _server;
+
+  InternetAddress get address => _server.address;
+
+  int get port => _server.port;
+
+  /// Starts on [preferredPort], or any free port if that one is taken;
+  /// the QR code carries whichever port was actually bound.
+  static Future<SharelyServer> start({
+    required InternetAddress address,
+    required PairingRequestHandler pairingHandler,
+    int preferredPort = defaultSharelyPort,
+  }) async {
+    final router = Router()..post('/v1/pair', pairingHandler.handle);
+    final handler = const Pipeline()
+        .addMiddleware(_noStoreHeaders)
+        .addHandler(router.call);
+    HttpServer server;
+    try {
+      server = await _serve(handler, address, preferredPort);
+    } on SocketException {
+      server = await _serve(handler, address, 0);
+    }
+    return SharelyServer._(server);
+  }
+
+  Future<void> stop() => _server.close(force: true);
+
+  static Future<HttpServer> _serve(
+    Handler handler,
+    InternetAddress address,
+    int port,
+  ) async {
+    final server = await shelf_io.serve(
+      handler,
+      address,
+      port,
+      poweredByHeader: null,
+    );
+    server.idleTimeout = const Duration(seconds: 30);
+    return server;
+  }
+}
+
+Handler _noStoreHeaders(Handler inner) {
+  return (request) async {
+    final response = await inner(request);
+    return response.change(headers: {'cache-control': 'no-store'});
+  };
+}

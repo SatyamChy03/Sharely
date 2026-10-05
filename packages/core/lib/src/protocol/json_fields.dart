@@ -1,8 +1,24 @@
+import 'dart:convert';
+
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
+import 'package:sharely_core/src/protocol/protocol_ids.dart';
 import 'package:sharely_core/src/protocol/protocol_limits.dart';
 
 final _controlCharacters = RegExp(r'[\x00-\x1F\x7F]');
-final _idPattern = RegExp(r'^[A-Za-z0-9_-]+$');
+
+/// Decodes untrusted text that must be a single JSON object.
+Map<String, Object?> decodeJsonObject(String text) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(text);
+  } on FormatException {
+    throw const ProtocolException('Message is not valid JSON');
+  }
+  if (decoded is! Map<String, Object?>) {
+    throw const ProtocolException('Message must be a JSON object');
+  }
+  return decoded;
+}
 
 /// Typed, validating access to a decoded JSON object from an untrusted peer.
 class JsonFields {
@@ -38,11 +54,18 @@ class JsonFields {
 
   String id(String key) {
     final value = string(key, maxLength: ProtocolLimits.maxIdChars);
-    if (value.length < ProtocolLimits.minIdChars ||
-        !_idPattern.hasMatch(value)) {
+    if (!isValidProtocolId(value)) {
       throw ProtocolException('"$key" is not a valid id');
     }
     return value;
+  }
+
+  JsonFields object(String key) {
+    final value = _json[key];
+    if (value is! Map<String, Object?>) {
+      throw ProtocolException('"$key" must be an object');
+    }
+    return JsonFields(value);
   }
 
   int integer(String key, {required int min, required int max}) {
