@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sharely/app/storage/trust_store_provider.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
@@ -30,10 +31,16 @@ class _FakePairingClient extends PairingClient {
   }) => _result();
 }
 
-ProviderContainer _phoneContainer(Future<PairedDevice> Function() result) {
+ProviderContainer _phoneContainer(
+  Future<PairedDevice> Function() result, {
+  SecretStore? secrets,
+}) {
   final container = ProviderContainer(
     overrides: [
       pairingClientProvider.overrideWithValue(_FakePairingClient(result)),
+      trustStoreProvider.overrideWithValue(
+        TrustStore(secrets ?? MemorySecretStore()),
+      ),
       localHelloProvider.overrideWith(
         (ref) async => const HelloMessage(
           deviceId: 'phone_0123456789abc',
@@ -55,7 +62,22 @@ void main() {
         .pairWithScannedCode(_validInvite);
 
     expect(container.read(phonePairingProvider), isA<PhonePaired>());
-    expect(container.read(pairedDevicesProvider).single, _laptop);
+    expect(container.read(pairedDevicesProvider).value?.single, _laptop);
+  });
+
+  test('a paired laptop is still trusted after a restart', () async {
+    final secrets = MemorySecretStore();
+    final firstRun = _phoneContainer(() async => _laptop, secrets: secrets);
+    await firstRun
+        .read(phonePairingProvider.notifier)
+        .pairWithScannedCode(_validInvite);
+    firstRun.dispose();
+
+    final secondRun = _phoneContainer(() async => _laptop, secrets: secrets);
+    final trusted = await secondRun.read(pairedDevicesProvider.future);
+
+    expect(trusted.single.deviceId, _laptop.deviceId);
+    expect(trusted.single.authToken, _laptop.authToken);
   });
 
   final failures = {
@@ -76,7 +98,7 @@ void main() {
           .pairWithScannedCode(code);
       final state = container.read(phonePairingProvider);
       expect((state as PhonePairingFailed).issue, issue);
-      expect(container.read(pairedDevicesProvider), isEmpty);
+      expect(await container.read(pairedDevicesProvider.future), isEmpty);
     });
   }
 }

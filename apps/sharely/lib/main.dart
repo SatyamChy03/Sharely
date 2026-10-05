@@ -5,10 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:sharely/app/sharely_app.dart';
+import 'package:sharely/features/pairing/state/paired_devices.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   _configureLogging();
-  runApp(const ProviderScope(child: SharelyApp()));
+  final container = ProviderContainer();
+  // Loaded before the first frame so a paired phone opens on Home.
+  await container.read(pairedDevicesProvider.future);
+  runApp(
+    UncontrolledProviderScope(container: container, child: const SharelyApp()),
+  );
 }
 
 void _configureLogging() {

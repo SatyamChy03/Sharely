@@ -34,7 +34,8 @@ class PhonePairingController extends Notifier<PhonePairingState> {
           .read(pairingClientProvider)
           .pair(invite: invite, localHello: localHello);
       if (!ref.mounted) return;
-      ref.read(pairedDevicesProvider.notifier).trust(laptop);
+      await ref.read(pairedDevicesProvider.notifier).trust(laptop);
+      if (!ref.mounted) return;
       state = PhonePaired(laptop);
     } on PairingException catch (error) {
       if (!ref.mounted) return;

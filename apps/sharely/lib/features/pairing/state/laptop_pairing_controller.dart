@@ -31,7 +31,6 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
     if (address == null) return const LaptopNotOnNetwork();
     final localHello = await ref.watch(localHelloProvider.future);
     _localHello = localHello;
-    _session = PairingSession();
     final server = await SharelyServer.start(
       address: address,
       pairingHandler: PairingRequestHandler(
@@ -45,18 +44,22 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
       _expiryTimer?.cancel();
       unawaited(server.stop());
     });
+    final pairedDevices = await ref.read(pairedDevicesProvider.future);
+    if (pairedDevices.isNotEmpty) {
+      return LaptopPairedWithPhone(pairedDevices.last);
+    }
     return _startWaiting();
   }
 
   /// Shows a fresh QR code and code, invalidating the previous ones.
   void showNewCode() {
     if (_server == null) return;
-    _session = PairingSession();
     state = AsyncData(_startWaiting());
   }
 
   LaptopPairingState _startWaiting() {
-    final session = _session!;
+    final session = PairingSession();
+    _session = session;
     _expiryTimer?.cancel();
     _expiryTimer = Timer(session.lifetime, showNewCode);
     return LaptopWaitingForPhone(
@@ -74,7 +77,8 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
 
   void _handlePhonePaired(PairedDevice phone) {
     _expiryTimer?.cancel();
-    ref.read(pairedDevicesProvider.notifier).trust(phone);
+    _session = null;
+    unawaited(ref.read(pairedDevicesProvider.notifier).trust(phone));
     state = AsyncData(LaptopPairedWithPhone(phone));
   }
 }

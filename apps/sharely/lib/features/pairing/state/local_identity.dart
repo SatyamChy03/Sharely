@@ -3,17 +3,16 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sharely/app/device_platform.dart';
+import 'package:sharely/app/storage/trust_store_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 final _controlCharacters = RegExp(r'[\x00-\x1F\x7F]');
 
-// Regenerated each launch until paired devices are persisted securely.
-final String _launchDeviceId = generateSecureId();
-
 /// How this device introduces itself to the other side.
 final localHelloProvider = FutureProvider<HelloMessage>((ref) async {
+  final deviceId = await ref.read(trustStoreProvider).loadOrCreateDeviceId();
   return HelloMessage(
-    deviceId: _launchDeviceId,
+    deviceId: deviceId,
     deviceName: _cleanDeviceName(await _readDeviceName()),
     platform: currentDevicePlatform,
   );
