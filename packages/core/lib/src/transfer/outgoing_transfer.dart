@@ -121,7 +121,7 @@ class OutgoingTransfer {
 
   Future<String> _checksum(OutgoingFile file) async {
     final hasher = Sha256Accumulator();
-    await for (final chunk in File(file.path).openRead()) {
+    await for (final chunk in file.openRead()) {
       _throwIfStopped();
       hasher.add(chunk);
     }
@@ -160,7 +160,7 @@ class OutgoingTransfer {
       request.contentLength = file.sizeBytes;
       var bytesSent = 0;
       await request.addStream(
-        File(file.path).openRead().map((chunk) {
+        file.openRead().map((chunk) {
           bytesSent += chunk.length;
           _reportSending(bytesBefore + bytesSent);
           return chunk;

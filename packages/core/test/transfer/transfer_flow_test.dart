@@ -162,7 +162,7 @@ void main() {
 
   test('an unreadable file fails clearly before anything is offered', () async {
     final file = await harness.writeFile('gone.txt', 'x'.codeUnits);
-    await File(file.path).delete();
+    await File('${harness.workDirectory.path}/gone.txt').delete();
 
     final transfer = await _startSending(harness, [file]);
 

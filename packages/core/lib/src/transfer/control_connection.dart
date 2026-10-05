@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/protocol/message_codec.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
+import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as close_status;
@@ -34,6 +36,8 @@ class ControlConnection {
   final _closed = Completer<void>();
 
   /// Opens an authenticated control channel to a laptop's server.
+  ///
+  /// Throws [TransferException] with [TransferFailure.unreachable] on failure.
   static Future<ControlConnection> connect(
     DeviceEndpoint endpoint, {
     required Map<String, String> authHeaders,
@@ -45,7 +49,15 @@ class ControlConnection {
       pingInterval: controlPingInterval,
       connectTimeout: timeout,
     );
-    await channel.ready;
+    try {
+      await channel.ready;
+    } on WebSocketChannelException {
+      throw const TransferException(TransferFailure.unreachable);
+    } on IOException {
+      throw const TransferException(TransferFailure.unreachable);
+    } on TimeoutException {
+      throw const TransferException(TransferFailure.unreachable);
+    }
     return ControlConnection(channel);
   }
 

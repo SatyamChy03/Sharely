@@ -81,7 +81,7 @@ void main() {
       test('the control channel refuses $description', () async {
         await expectLater(
           ControlConnection.connect(harness.endpoint, authHeaders: headers),
-          throwsA(anything),
+          throwsA(isA<TransferException>()),
         );
       });
 
