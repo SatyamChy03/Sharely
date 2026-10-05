@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -5,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
+import 'package:sharely/features/pairing/widgets/no_code_hint_card.dart';
 import 'package:sharely/features/pairing/widgets/scan_camera_area.dart';
 import 'package:sharely/features/pairing/widgets/scan_status_card.dart';
 import 'package:sharely/features/pairing/widgets/step_progress.dart';
@@ -44,11 +48,29 @@ class ScanScreen extends ConsumerWidget {
                 ),
               ),
               const Gap(SharelySpacing.xl),
-              const Expanded(child: ScanCameraArea()),
+              // 360 high as designed, shrinking first on short phones.
+              const Flexible(
+                child: SizedBox(height: 360, child: ScanCameraArea()),
+              ),
               const Gap(SharelySpacing.lg),
-              ScanStatusCard(
-                state: pairingState,
-                onScanAgain: ref.read(phonePairingProvider.notifier).scanAgain,
+              if (pairingState is PhoneConnecting ||
+                  pairingState is PhonePairingFailed)
+                ScanStatusCard(
+                  state: pairingState,
+                  onScanAgain: ref
+                      .read(phonePairingProvider.notifier)
+                      .scanAgain,
+                )
+              else
+                const NoCodeHintCard(),
+              const Spacer(),
+              SharelyButton(
+                label: 'Type a 6-digit code instead',
+                variant: SharelyButtonVariant.outline,
+                onPressed: () {
+                  ref.read(phonePairingProvider.notifier).scanAgain();
+                  unawaited(context.push(AppRoutes.typeCode));
+                },
               ),
             ],
           ),
