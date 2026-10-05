@@ -4,7 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sharely/app/router.dart';
 import 'package:sharely/app/sharely_app.dart';
 import 'package:sharely/features/pairing/scan_screen.dart';
+import 'package:sharely/features/pairing/state/camera_permission_gateway.dart';
 import 'package:sharely/features/pairing/widgets/qr_scanner.dart';
+
+import '../pairing/fake_camera_permission_gateway.dart';
 
 void main() {
   Future<void> pumpSharelyApp(WidgetTester tester) async {
@@ -15,6 +18,9 @@ void main() {
       ProviderScope(
         overrides: [
           isDesktopRoleProvider.overrideWithValue(false),
+          cameraPermissionGatewayProvider.overrideWithValue(
+            FakeCameraPermissionGateway(),
+          ),
           // Tests have no camera; stand in an empty preview.
           qrScannerBuilderProvider.overrideWithValue(
             (context, onCode) => const SizedBox.expand(),

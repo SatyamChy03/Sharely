@@ -7,9 +7,8 @@ import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
-import 'package:sharely/features/pairing/widgets/qr_scanner.dart';
+import 'package:sharely/features/pairing/widgets/scan_camera_area.dart';
 import 'package:sharely/features/pairing/widgets/scan_status_card.dart';
-import 'package:sharely/features/pairing/widgets/scanner_viewfinder.dart';
 import 'package:sharely/features/pairing/widgets/step_progress.dart';
 
 /// Get started step 2 of 3: scan the QR code shown on the laptop.
@@ -19,7 +18,6 @@ class ScanScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pairingState = ref.watch(phonePairingProvider);
-    final controller = ref.read(phonePairingProvider.notifier);
     ref.listen(phonePairingProvider, (previous, next) {
       if (next is PhonePaired) context.go(AppRoutes.connected);
     });
@@ -46,19 +44,11 @@ class ScanScreen extends ConsumerWidget {
                 ),
               ),
               const Gap(SharelySpacing.xl),
-              Expanded(
-                child: ScannerViewfinder(
-                  isScanning: pairingState is PhoneReadyToScan,
-                  camera: ref.watch(qrScannerBuilderProvider)(
-                    context,
-                    controller.pairWithScannedCode,
-                  ),
-                ),
-              ),
+              const Expanded(child: ScanCameraArea()),
               const Gap(SharelySpacing.lg),
               ScanStatusCard(
                 state: pairingState,
-                onScanAgain: controller.scanAgain,
+                onScanAgain: ref.read(phonePairingProvider.notifier).scanAgain,
               ),
             ],
           ),
