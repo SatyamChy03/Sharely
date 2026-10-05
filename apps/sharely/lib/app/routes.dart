@@ -4,4 +4,5 @@ abstract final class AppRoutes {
   static const connected = '/pair/connected';
   static const home = '/home';
   static const laptopPairing = '/laptop/pair';
+  static const sending = '/send';
 }

@@ -10,6 +10,8 @@ import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/widgets/laptop_pairing_intro.dart';
 import 'package:sharely/features/pairing/widgets/laptop_status_card.dart';
 import 'package:sharely/features/pairing/widgets/pairing_qr_card.dart';
+import 'package:sharely/features/transfer/state/has_received_file.dart';
+import 'package:sharely/features/transfer/widgets/incoming_transfers_overlay.dart';
 
 /// Laptop get-started screen: shows the QR code until a phone pairs.
 class LaptopPairingScreen extends ConsumerWidget {
@@ -21,24 +23,45 @@ class LaptopPairingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pairing = ref.watch(laptopPairingProvider);
     final isPaired = pairing.value is LaptopPairedWithPhone;
+    final hasReceivedFile = ref.watch(hasReceivedFileProvider);
     return Theme(
       data: SharelyTheme.dark(),
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: Scaffold(
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1120),
-                child: LayoutBuilder(
-                  builder: (context, constraints) => _buildLayout(
-                    isWide: constraints.maxWidth >= _wideLayoutMinWidth,
-                    intro: LaptopPairingIntro(isPaired: isPaired),
-                    panel: _PairingPanel(pairing: pairing),
-                  ),
-                ),
+          body: Stack(
+            children: [
+              _buildScrollingBody(
+                pairing: pairing,
+                isPaired: isPaired,
+                hasReceivedFile: hasReceivedFile,
               ),
+              const IncomingTransfersOverlay(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScrollingBody({
+    required AsyncValue<LaptopPairingState> pairing,
+    required bool isPaired,
+    required bool hasReceivedFile,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: LayoutBuilder(
+            builder: (context, constraints) => _buildLayout(
+              isWide: constraints.maxWidth >= _wideLayoutMinWidth,
+              intro: LaptopPairingIntro(
+                isPaired: isPaired,
+                hasReceivedFile: hasReceivedFile,
+              ),
+              panel: _PairingPanel(pairing: pairing),
             ),
           ),
         ),

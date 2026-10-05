@@ -82,6 +82,9 @@ class _SharelyButtonState extends State<SharelyButton> {
     return TextButton.styleFrom(
       backgroundColor: background,
       foregroundColor: foreground,
+      // Fade the variant's own colours; the default grey is unreadable on blue.
+      disabledBackgroundColor: background.withValues(alpha: 0.4),
+      disabledForegroundColor: foreground.withValues(alpha: 0.6),
       textStyle: Theme.of(context).textTheme.labelLarge,
       shape: RoundedRectangleBorder(
         borderRadius: const BorderRadius.all(SharelyRadii.button),

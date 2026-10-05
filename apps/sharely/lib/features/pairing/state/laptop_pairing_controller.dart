@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
+import 'package:sharely/features/transfer/state/transfer_receiver_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 /// Which address the laptop serves on. Overridable so tests use loopback.
@@ -37,6 +38,10 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
         currentSession: () => _session,
         localHello: localHello,
         onPaired: _handlePhonePaired,
+      ),
+      transfers: (
+        receiver: ref.read(transferReceiverProvider),
+        findPairedDevice: _findPairedDevice,
       ),
     );
     _server = server;
@@ -73,6 +78,12 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
       code: session.code,
       expiresAt: session.expiresAt,
     );
+  }
+
+  // Read on every request, so a device removed from the list loses access.
+  PairedDevice? _findPairedDevice(String deviceId) {
+    final devices = ref.read(pairedDevicesProvider).value ?? const [];
+    return devices.where((device) => device.deviceId == deviceId).firstOrNull;
   }
 
   void _handlePhonePaired(PairedDevice phone) {
