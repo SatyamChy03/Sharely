@@ -14,9 +14,13 @@ class ControlHub {
   final _connections = <String, ControlConnection>{};
   final _messages = StreamController<DeviceMessage>.broadcast();
   final _disconnects = StreamController<String>.broadcast();
+  final _connects = StreamController<String>.broadcast();
 
   /// Validated messages, tagged with the paired device that sent them.
   Stream<DeviceMessage> get messages => _messages.stream;
+
+  /// Device ids that just opened a control connection.
+  Stream<String> get connects => _connects.stream;
 
   /// Device ids whose control connection just closed.
   Stream<String> get disconnects => _disconnects.stream;
@@ -47,6 +51,7 @@ class ControlHub {
     await Future.wait(open.map((connection) => connection.close()));
     await _messages.close();
     await _disconnects.close();
+    await _connects.close();
   }
 
   void _adopt(PairedDevice device, ControlConnection connection) {
@@ -54,6 +59,7 @@ class ControlHub {
     final previous = _connections[device.deviceId];
     _connections[device.deviceId] = connection;
     if (previous != null) unawaited(previous.close());
+    if (!_connects.isClosed) _connects.add(device.deviceId);
     connection.messages.listen((message) {
       if (_messages.isClosed) return;
       _messages.add((sender: device, message: message));

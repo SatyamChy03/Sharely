@@ -4,6 +4,7 @@ library;
 
 export 'src/pairing/device_endpoint.dart';
 export 'src/pairing/lan_address.dart';
+export 'src/pairing/laptop_finder.dart';
 export 'src/pairing/paired_device.dart';
 export 'src/pairing/pairing_client.dart';
 export 'src/pairing/pairing_exception.dart';

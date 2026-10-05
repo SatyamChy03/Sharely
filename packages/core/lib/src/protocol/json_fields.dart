@@ -70,6 +70,12 @@ class JsonFields {
     return JsonFields(value);
   }
 
+  bool boolean(String key) {
+    final value = _json[key];
+    if (value is! bool) throw ProtocolException('"$key" must be true or false');
+    return value;
+  }
+
   int integer(String key, {required int min, required int max}) {
     final value = _json[key];
     if (value is! int) throw ProtocolException('"$key" must be an integer');

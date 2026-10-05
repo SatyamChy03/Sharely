@@ -46,6 +46,7 @@ Map<String, Object?> _encodeDevice(PairedDevice device) => {
   'platform': device.platform.name,
   'authToken': device.authToken,
   'pairedAt': device.pairedAt.toUtc().millisecondsSinceEpoch,
+  if (device.alwaysAccept) 'alwaysAccept': true,
   if (device.endpoint case final endpoint?) ...{
     'host': endpoint.host.address,
     'port': endpoint.port,
@@ -61,6 +62,7 @@ PairedDevice _decodeDevice(JsonFields fields) {
     'pairedAt',
     'host',
     'port',
+    'alwaysAccept',
   });
   final platform = DevicePlatform.fromWireName(
     fields.string('platform', maxLength: 16),
@@ -81,6 +83,7 @@ PairedDevice _decodeDevice(JsonFields fields) {
     authToken: fields.id('authToken'),
     pairedAt: DateTime.fromMillisecondsSinceEpoch(pairedAtMillis, isUtc: true),
     endpoint: _decodeEndpoint(fields),
+    alwaysAccept: fields.has('alwaysAccept') && fields.boolean('alwaysAccept'),
   );
 }
 
