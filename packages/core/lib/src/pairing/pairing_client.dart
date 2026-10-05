@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:sharely_core/src/net/bounded_body.dart';
+import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/pairing/pairing_exception.dart';
 import 'package:sharely_core/src/pairing/pairing_invite.dart';
@@ -77,6 +78,7 @@ class PairingClient {
       laptopHello,
       authToken: authToken,
       pairedAt: DateTime.now(),
+      endpoint: DeviceEndpoint(host: invite.host, port: invite.port),
     );
   }
 }

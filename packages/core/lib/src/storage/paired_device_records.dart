@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/protocol/json_fields.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
@@ -45,6 +46,10 @@ Map<String, Object?> _encodeDevice(PairedDevice device) => {
   'platform': device.platform.name,
   'authToken': device.authToken,
   'pairedAt': device.pairedAt.toUtc().millisecondsSinceEpoch,
+  if (device.endpoint case final endpoint?) ...{
+    'host': endpoint.host.address,
+    'port': endpoint.port,
+  },
 };
 
 PairedDevice _decodeDevice(JsonFields fields) {
@@ -54,6 +59,8 @@ PairedDevice _decodeDevice(JsonFields fields) {
     'platform',
     'authToken',
     'pairedAt',
+    'host',
+    'port',
   });
   final platform = DevicePlatform.fromWireName(
     fields.string('platform', maxLength: 16),
@@ -73,5 +80,14 @@ PairedDevice _decodeDevice(JsonFields fields) {
     platform: platform,
     authToken: fields.id('authToken'),
     pairedAt: DateTime.fromMillisecondsSinceEpoch(pairedAtMillis, isUtc: true),
+    endpoint: _decodeEndpoint(fields),
+  );
+}
+
+DeviceEndpoint? _decodeEndpoint(JsonFields fields) {
+  if (!fields.has('host') && !fields.has('port')) return null;
+  return DeviceEndpoint.parse(
+    host: fields.string('host', maxLength: 15),
+    port: fields.integer('port', min: 0, max: 65535),
   );
 }

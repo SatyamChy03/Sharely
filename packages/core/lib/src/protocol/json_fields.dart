@@ -35,6 +35,8 @@ class JsonFields {
     }
   }
 
+  bool has(String key) => _json.containsKey(key);
+
   String string(
     String key, {
     required int maxLength,

@@ -54,6 +54,15 @@ final _corruptedStores = <String, String>{
   'a far-future pairing date': _storedList([
     {..._validRecord(), 'pairedAt': 9999999999999},
   ]),
+  'an endpoint on the public internet': _storedList([
+    {..._validRecord(), 'host': '8.8.8.8', 'port': 53891},
+  ]),
+  'an endpoint on a privileged port': _storedList([
+    {..._validRecord(), 'host': '192.168.1.24', 'port': 80},
+  ]),
+  'a host without a port': _storedList([
+    {..._validRecord(), 'host': '192.168.1.24'},
+  ]),
   'too many devices': _storedList(
     List.filled(maxStoredPairedDevices + 1, _validRecord()),
   ),
@@ -103,6 +112,17 @@ void main() {
       expect(loaded.platform, phone.platform);
       expect(loaded.authToken, phone.authToken);
       expect(loaded.pairedAt, phone.pairedAt);
+    });
+
+    test('keep a laptop endpoint for reconnecting', () async {
+      final laptop = _phone().copyWith(
+        endpoint: DeviceEndpoint.parse(host: '192.168.1.24', port: 53891),
+      );
+      await store.savePairedDevices([laptop]);
+
+      final loaded = (await store.loadPairedDevices()).single;
+
+      expect(loaded.endpoint, laptop.endpoint);
     });
 
     test('can be forgotten', () async {
