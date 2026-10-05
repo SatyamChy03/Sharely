@@ -10,6 +10,9 @@ import 'package:shelf_router/shelf_router.dart';
 
 const defaultSharelyPort = 53891;
 
+/// Unauthenticated: the laptop's public identity, for finding it by code.
+const helloPath = '/v1/hello';
+
 /// Routes that only paired devices may use.
 typedef TransferRoutes = ({
   TransferReceiver receiver,
@@ -34,7 +37,9 @@ class SharelyServer {
     TransferRoutes? transfers,
     int preferredPort = defaultSharelyPort,
   }) async {
-    final router = Router()..post('/v1/pair', pairingHandler.handle);
+    final router = Router()
+      ..get(helloPath, pairingHandler.handleHello)
+      ..post('/v1/pair', pairingHandler.handle);
     if (transfers != null) _addTransferRoutes(router, transfers);
     final handler = const Pipeline()
         .addMiddleware(_noStoreHeaders)

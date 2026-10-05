@@ -29,6 +29,11 @@ class PairingRequestHandler {
   final void Function(PairedDevice device) onPaired;
   final DateTime Function() _clock;
 
+  /// `GET /v1/hello`: lets a phone typing a code find this laptop. It reveals
+  /// only what the QR code shows anyway: the laptop's id, name and platform.
+  Response handleHello(Request request) =>
+      Response.ok(jsonEncode(localHello.toJson()), headers: _jsonHeaders);
+
   Future<Response> handle(Request request) async {
     final PairingRequest pairingRequest;
     try {
