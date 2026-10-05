@@ -17,7 +17,7 @@ class ConnectedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final devices = ref.watch(pairedDevicesProvider);
+    final devices = ref.watch(pairedDevicesProvider).value ?? const [];
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(

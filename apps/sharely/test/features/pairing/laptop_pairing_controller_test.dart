@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sharely/app/storage/trust_store_provider.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
@@ -19,11 +20,17 @@ const _phoneHello = HelloMessage(
   platform: DevicePlatform.android,
 );
 
-ProviderContainer _laptopContainer({InternetAddress? address}) {
+ProviderContainer _laptopContainer({
+  InternetAddress? address,
+  SecretStore? secrets,
+}) {
   final container = ProviderContainer(
     overrides: [
       lanAddressProvider.overrideWith((ref) async => address),
       localHelloProvider.overrideWith((ref) async => _laptopHello),
+      trustStoreProvider.overrideWithValue(
+        TrustStore(secrets ?? MemorySecretStore()),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -47,7 +54,36 @@ void main() {
     final state = container.read(laptopPairingProvider).value;
     expect(state, isA<LaptopPairedWithPhone>());
     expect(
-      container.read(pairedDevicesProvider).single.deviceId,
+      container.read(pairedDevicesProvider).value?.single.deviceId,
+      _phoneHello.deviceId,
+    );
+  });
+
+  test('after a restart it shows the phone it already trusts', () async {
+    final secrets = MemorySecretStore();
+    final firstRun = _laptopContainer(
+      address: InternetAddress.loopbackIPv4,
+      secrets: secrets,
+    );
+    final waiting = await firstRun.read(
+      laptopPairingProvider.future,
+    ) as LaptopWaitingForPhone;
+    await const PairingClient().pair(
+      invite: waiting.invite,
+      localHello: _phoneHello,
+    );
+    await pumpEventQueue();
+    firstRun.dispose();
+
+    final secondRun = _laptopContainer(
+      address: InternetAddress.loopbackIPv4,
+      secrets: secrets,
+    );
+    final state = await secondRun.read(laptopPairingProvider.future);
+
+    expect(state, isA<LaptopPairedWithPhone>());
+    expect(
+      (state as LaptopPairedWithPhone).phone.deviceId,
       _phoneHello.deviceId,
     );
   });

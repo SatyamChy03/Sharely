@@ -20,3 +20,8 @@ export 'src/security/safe_file_creator.dart';
 export 'src/security/secure_id.dart';
 export 'src/server/pairing_request_handler.dart' show PairingRequestHandler;
 export 'src/server/sharely_server.dart';
+export 'src/storage/memory_secret_store.dart';
+export 'src/storage/paired_device_records.dart' show maxStoredPairedDevices;
+export 'src/storage/secret_store.dart';
+export 'src/storage/trust_store.dart';
+export 'src/storage/trust_store_exception.dart';

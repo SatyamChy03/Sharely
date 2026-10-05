@@ -46,9 +46,8 @@ final class HelloMessage extends ProtocolMessage {
   };
 
   static DevicePlatform _parsePlatform(String wireName) {
-    for (final platform in DevicePlatform.values) {
-      if (platform.name == wireName) return platform;
-    }
-    throw const ProtocolException('Unknown platform');
+    final platform = DevicePlatform.fromWireName(wireName);
+    if (platform == null) throw const ProtocolException('Unknown platform');
+    return platform;
   }
 }

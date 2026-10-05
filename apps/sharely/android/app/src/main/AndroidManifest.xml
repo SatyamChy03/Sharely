@@ -4,6 +4,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="sharely"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

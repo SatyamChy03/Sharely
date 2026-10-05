@@ -7,15 +7,14 @@ import 'package:sharely/features/onboarding/welcome_screen.dart';
 import 'package:sharely/features/pairing/connected_screen.dart';
 import 'package:sharely/features/pairing/laptop_pairing_screen.dart';
 import 'package:sharely/features/pairing/scan_screen.dart';
+import 'package:sharely/features/pairing/state/paired_devices.dart';
 
 /// Whether this device plays the laptop role. Overridable in tests.
 final isDesktopRoleProvider = Provider<bool>((ref) => isDesktopRole);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
-    initialLocation: ref.read(isDesktopRoleProvider)
-        ? AppRoutes.laptopPairing
-        : AppRoutes.welcome,
+    initialLocation: _initialLocation(ref),
     routes: [
       GoRoute(
         path: AppRoutes.welcome,
@@ -42,3 +41,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
+
+String _initialLocation(Ref ref) {
+  if (ref.read(isDesktopRoleProvider)) return AppRoutes.laptopPairing;
+  final pairedDevices = ref.read(pairedDevicesProvider).value ?? const [];
+  return pairedDevices.isEmpty ? AppRoutes.welcome : AppRoutes.home;
+}
