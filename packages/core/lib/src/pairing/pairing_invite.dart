@@ -84,7 +84,7 @@ InternetAddress _parsePrivateHost(String raw) {
 
 int _parsePort(String raw) {
   final port = int.tryParse(raw);
-  if (port == null || port < 1024 || port > 65535) {
+  if (port == null || !isValidServicePort(port)) {
     throw const ProtocolException('Invite port is out of range');
   }
   return port;

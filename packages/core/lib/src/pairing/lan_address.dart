@@ -26,3 +26,6 @@ Future<List<InternetAddress>> findLanAddresses() async {
         if (isPrivateLanAddress(address)) address,
   ]..sort((a, b) => homeRangeRank(a).compareTo(homeRangeRank(b)));
 }
+
+/// Sharely never serves on, or connects to, a privileged or invalid port.
+bool isValidServicePort(int port) => port >= 1024 && port <= 65535;

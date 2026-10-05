@@ -37,7 +37,12 @@ void _roundTripTests() {
       const OfferMessage(
         transferId: _transferId,
         files: [
-          OfferedFile(name: 'a.jpg', sizeBytes: 1024, mimeType: 'image/jpeg'),
+          OfferedFile(
+            name: 'a.jpg',
+            sizeBytes: 1024,
+            mimeType: 'image/jpeg',
+            sha256: _sha256,
+          ),
         ],
       ),
       const TransferDecisionMessage.accept(_transferId),
@@ -54,8 +59,18 @@ void _roundTripTests() {
     const offer = OfferMessage(
       transferId: _transferId,
       files: [
-        OfferedFile(name: 'a', sizeBytes: 10, mimeType: 'text/plain'),
-        OfferedFile(name: 'b', sizeBytes: 32, mimeType: 'text/plain'),
+        OfferedFile(
+          name: 'a',
+          sizeBytes: 10,
+          mimeType: 'text/plain',
+          sha256: _sha256,
+        ),
+        OfferedFile(
+          name: 'b',
+          sizeBytes: 32,
+          mimeType: 'text/plain',
+          sha256: _sha256,
+        ),
       ],
     );
     expect(offer.totalBytes, 42);
@@ -110,10 +125,14 @@ void _linkTests() {
   });
 }
 
+const _sha256 =
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
 const Map<String, Object?> _validFile = {
   'name': 'a.jpg',
   'size': 1,
   'mime': 'image/jpeg',
+  'sha256': _sha256,
 };
 
 // Attack and malformed inputs, each of which must be rejected.
@@ -159,6 +178,27 @@ final _invalidFieldCases = <String, Map<String, Object?>>{
     'transferId': _transferId,
     'files': [
       {..._validFile, 'mime': 'image jpeg'},
+    ],
+  },
+  'a missing checksum': {
+    'type': 'offer',
+    'transferId': _transferId,
+    'files': [
+      {..._validFile}..remove('sha256'),
+    ],
+  },
+  'an uppercase checksum': {
+    'type': 'offer',
+    'transferId': _transferId,
+    'files': [
+      {..._validFile, 'sha256': 'AB' * 32},
+    ],
+  },
+  'a short checksum': {
+    'type': 'offer',
+    'transferId': _transferId,
+    'files': [
+      {..._validFile, 'sha256': 'ab' * 31},
     ],
   },
   'too many files': {
