@@ -1,6 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/has_received_file.dart';
 import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
+import 'package:sharely/features/transfer/state/recent_transfer.dart';
+import 'package:sharely/features/transfer/state/recent_transfers.dart';
 import 'package:sharely/features/transfer/state/transfer_receiver_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
@@ -23,7 +29,18 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
     return const [];
   }
 
-  void accept(String transferId) {
+  /// [alwaysFromSender] skips the prompt for this sender from now on.
+  void accept(String transferId, {bool alwaysFromSender = false}) {
+    if (alwaysFromSender) {
+      final view = state.where((view) => view.transferId == transferId);
+      for (final match in view) {
+        unawaited(
+          ref
+              .read(pairedDevicesProvider.notifier)
+              .setAlwaysAccept(match.senderId, isOn: true),
+        );
+      }
+    }
     _receiver.accept(transferId);
     _update(
       transferId,
@@ -52,11 +69,14 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
           ...state,
           IncomingTransferView(
             transferId: offer.transferId,
+            senderId: sender.deviceId,
             senderName: sender.deviceName,
             fileNames: [for (final file in offer.files) file.name],
+            fileSizes: [for (final file in offer.files) file.sizeBytes],
             totalBytes: offer.totalBytes,
           ),
         ];
+        if (sender.alwaysAccept) accept(offer.transferId);
       case IncomingTransferProgressed(:final transferId, :final bytesReceived):
         _update(
           transferId,
@@ -64,6 +84,7 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
         );
       case IncomingTransferCompleted(:final transferId, :final savedFiles):
         ref.read(hasReceivedFileProvider.notifier).markReceived();
+        _recordReceived(transferId, savedFiles);
         _update(
           transferId,
           (view) => view.copyWith(
@@ -81,6 +102,24 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
           ),
         );
     }
+  }
+
+  void _recordReceived(String transferId, List<File> savedFiles) {
+    final view = state.where((view) => view.transferId == transferId);
+    if (view.isEmpty) return;
+    final sizes = view.first.fileSizes;
+    final now = DateTime.now();
+    ref.read(recentTransfersProvider.notifier).record([
+      // Files are uploaded in offer order, so sizes line up by index.
+      for (final (index, file) in savedFiles.indexed)
+        RecentTransfer(
+          name: file.uri.pathSegments.last,
+          sizeBytes: index < sizes.length ? sizes[index] : 0,
+          direction: TransferDirection.received,
+          finishedAt: now,
+          savedFile: file,
+        ),
+    ]);
   }
 
   void _update(

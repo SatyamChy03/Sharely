@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
+import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/theme.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/widgets/sharely_wordmark.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
+import 'package:sharely/features/pairing/state/paired_devices.dart';
+import 'package:sharely/features/pairing/widgets/firewall_hint.dart';
 import 'package:sharely/features/pairing/widgets/laptop_pairing_intro.dart';
 import 'package:sharely/features/pairing/widgets/laptop_status_card.dart';
 import 'package:sharely/features/pairing/widgets/pairing_qr_card.dart';
@@ -24,6 +28,13 @@ class LaptopPairingScreen extends ConsumerWidget {
     final pairing = ref.watch(laptopPairingProvider);
     final isPaired = pairing.value is LaptopPairedWithPhone;
     final hasReceivedFile = ref.watch(hasReceivedFileProvider);
+    // A phone that pairs while the QR shows moves the laptop to its home.
+    ref.listen(laptopPairingProvider, (previous, next) {
+      if (previous?.value is LaptopWaitingForPhone &&
+          next.value is LaptopPairedWithPhone) {
+        context.go(AppRoutes.laptopHome);
+      }
+    });
     return Theme(
       data: SharelyTheme.dark(),
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -85,7 +96,7 @@ class LaptopPairingScreen extends ConsumerWidget {
         : Column(spacing: 32, children: [intro, panel]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [const SharelyWordmark(), const Gap(40), body],
+      children: [const _TopBar(), const Gap(40), body],
     );
   }
 }
@@ -98,14 +109,20 @@ class _PairingPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final card = switch (pairing) {
-      AsyncData(value: LaptopWaitingForPhone() && final waiting) =>
-        PairingQrCard(waiting: waiting),
+      AsyncData(value: LaptopWaitingForPhone() && final waiting) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 14,
+        children: [
+          PairingQrCard(waiting: waiting),
+          const FirewallHint(),
+        ],
+      ),
       AsyncData(value: LaptopPairedWithPhone(:final phone)) => LaptopStatusCard(
         icon: LaptopStatusCard.pairedIcon,
         title: 'Paired with ${phone.deviceName}',
         message: 'Your phone and this laptop now trust each other.',
-        actionLabel: 'Pair another phone',
-        onAction: ref.read(laptopPairingProvider.notifier).showNewCode,
+        actionLabel: 'Open Sharely',
+        onAction: () => context.go(AppRoutes.laptopHome),
       ),
       AsyncData(value: LaptopNotOnNetwork()) => LaptopStatusCard(
         icon: LaptopStatusCard.offlineIcon,
@@ -129,5 +146,26 @@ class _PairingPanel extends ConsumerWidget {
       ),
     };
     return AnimatedSwitcher(duration: SharelyMotion.medium, child: card);
+  }
+}
+
+class _TopBar extends ConsumerWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devices = ref.watch(pairedDevicesProvider).value ?? const [];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const SharelyWordmark(),
+        // Opened to pair another phone: the way back to the laptop home.
+        if (devices.isNotEmpty)
+          TextButton(
+            onPressed: () => context.go(AppRoutes.laptopHome),
+            child: const Text('Back to Home'),
+          ),
+      ],
+    );
   }
 }

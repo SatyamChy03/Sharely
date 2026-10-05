@@ -43,7 +43,7 @@ class _FakeFilePicker extends SendFilePicker {
   const new();
 
   @override
-  Future<List<OutgoingFile>> pickFiles() async => [
+  Future<List<OutgoingFile>> pickFiles({bool photosOnly = false}) async => [
     OutgoingFile(
       name: 'photo.jpg',
       sizeBytes: _photoBytes.length,

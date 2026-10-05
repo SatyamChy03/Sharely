@@ -10,6 +10,7 @@ import 'package:sharely/features/transfer/state/laptop_connection_controller.dar
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely/features/transfer/state/send_controller.dart';
 import 'package:sharely/features/transfer/state/send_state.dart';
+import 'package:sharely/features/transfer/transfer_formatting.dart';
 import 'package:sharely/features/transfer/widgets/incoming_transfers_overlay.dart';
 import 'package:sharely_core/sharely_core.dart';
 
@@ -96,29 +97,43 @@ void main() {
 
   final sendScreens = <String, (SendState, List<String>)>{
     'waiting': (
-      const SendAwaitingAcceptance(fileCount: 2, totalBytes: 4200000),
-      ['Waiting for your laptop', 'Cancel'],
+      const SendAwaitingAcceptance(
+        files: [
+          (name: 'IMG_2051.jpg', sizeBytes: 2100000),
+          (name: 'IMG_2052.jpg', sizeBytes: 2100000),
+        ],
+      ),
+      [
+        'Sending to',
+        'Accept on your laptop to start.',
+        'IMG_2051.jpg',
+        'Cancel',
+      ],
     ),
     'in progress': (
       const SendInProgress(
-        fileCount: 1,
-        totalBytes: 10000000,
+        files: [(name: 'Trip.mp4', sizeBytes: 10000000)],
         bytesSent: 2500000,
         bytesPerSecond: 5000000,
       ),
-      ['25%', '2.5 MB of 10.0 MB · 5.0 MB/s · 2 s left', 'Cancel'],
+      [
+        '25%',
+        '5.0 MB/s',
+        '0 / 1',
+        '~2 s',
+        'Keeps going if you leave this screen',
+      ],
     ),
     'succeeded': (
-      const SendSucceeded(fileCount: 1, totalBytes: 2048),
-      ['Sent!', 'Done'],
+      const SendSucceeded(files: [(name: 'a.jpg', sizeBytes: 2048)]),
+      ['100%', '1 / 1', 'done', 'Done'],
     ),
     'declined': (
       const SendFailed(
-        fileCount: 1,
-        totalBytes: 2048,
+        files: [(name: 'a.jpg', sizeBytes: 2048)],
         reason: TransferFailure.rejected,
       ),
-      ["Couldn't send", 'Back to home'],
+      [describeSendFailure(TransferFailure.rejected), 'Back to home'],
     ),
   };
   for (final MapEntry(key: name, value: (state, texts))
@@ -131,7 +146,7 @@ void main() {
       );
 
       for (final text in texts) {
-        expect(find.text(text), findsOneWidget, reason: text);
+        expect(find.text(text), findsWidgets, reason: text);
       }
     });
   }
@@ -148,8 +163,10 @@ void main() {
           () => _FixedIncoming(const [
             IncomingTransferView(
               transferId: 'transfer_0123456789',
+              senderId: 'phone_0123456789abc',
               senderName: 'Motorola moto g54 5G',
               fileNames: ['IMG_2041.jpg', 'IMG_2042.jpg'],
+              fileSizes: [2100000, 2100000],
               totalBytes: 4200000,
             ),
           ]),
@@ -157,8 +174,12 @@ void main() {
       ],
     );
 
-    expect(find.text('Motorola moto g54 5G wants to send'), findsOneWidget);
-    expect(find.text('2 files · 4.2 MB'), findsOneWidget);
+    expect(
+      find.text('Motorola moto g54 5G is sending 2 files'),
+      findsOneWidget,
+    );
+    expect(find.text('4.2 MB'), findsOneWidget);
+    expect(find.text('Always accept from this phone'), findsOneWidget);
     expect(find.text('IMG_2041.jpg'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);

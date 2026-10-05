@@ -15,6 +15,8 @@ class IncomingTransfersOverlay extends ConsumerWidget {
     return Positioned(
       right: SharelySpacing.xl,
       bottom: SharelySpacing.xl,
+      // Cards fill up to their max width but never wider than the window.
+      left: SharelySpacing.xl,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,

@@ -10,8 +10,10 @@ enum IncomingTransferStage { offered, receiving, saved, failed }
 final class IncomingTransferView {
   const new({
     required this.transferId,
+    required this.senderId,
     required this.senderName,
     required this.fileNames,
+    required this.fileSizes,
     required this.totalBytes,
     this.stage = IncomingTransferStage.offered,
     this.bytesReceived = 0,
@@ -20,8 +22,10 @@ final class IncomingTransferView {
   });
 
   final String transferId;
+  final String senderId;
   final String senderName;
   final List<String> fileNames;
+  final List<int> fileSizes;
   final int totalBytes;
   final IncomingTransferStage stage;
   final int bytesReceived;
@@ -38,8 +42,10 @@ final class IncomingTransferView {
   }) {
     return IncomingTransferView(
       transferId: transferId,
+      senderId: senderId,
       senderName: senderName,
       fileNames: fileNames,
+      fileSizes: fileSizes,
       totalBytes: totalBytes,
       stage: stage ?? this.stage,
       bytesReceived: bytesReceived ?? this.bytesReceived,

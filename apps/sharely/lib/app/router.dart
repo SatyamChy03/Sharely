@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:sharely/app/device_platform.dart';
 import 'package:sharely/app/routes.dart';
 import 'package:sharely/features/home/home_screen.dart';
+import 'package:sharely/features/laptop/laptop_home_screen.dart';
 import 'package:sharely/features/onboarding/welcome_screen.dart';
+import 'package:sharely/features/pairing/code_entry_screen.dart';
 import 'package:sharely/features/pairing/connected_screen.dart';
 import 'package:sharely/features/pairing/laptop_pairing_screen.dart';
 import 'package:sharely/features/pairing/scan_screen.dart';
@@ -26,6 +28,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ScanScreen(),
       ),
       GoRoute(
+        path: AppRoutes.typeCode,
+        builder: (context, state) => const CodeEntryScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.connected,
         builder: (context, state) => const ConnectedScreen(),
       ),
@@ -38,6 +44,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SendingScreen(),
       ),
       GoRoute(
+        path: AppRoutes.laptopHome,
+        builder: (context, state) => const LaptopHomeScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.laptopPairing,
         builder: (context, state) => const LaptopPairingScreen(),
       ),
@@ -48,7 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 });
 
 String _initialLocation(Ref ref) {
-  if (ref.read(isDesktopRoleProvider)) return AppRoutes.laptopPairing;
   final pairedDevices = ref.read(pairedDevicesProvider).value ?? const [];
+  if (ref.read(isDesktopRoleProvider)) {
+    return pairedDevices.isEmpty
+        ? AppRoutes.laptopPairing
+        : AppRoutes.laptopHome;
+  }
   return pairedDevices.isEmpty ? AppRoutes.welcome : AppRoutes.home;
 }
