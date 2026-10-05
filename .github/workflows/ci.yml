@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes older runs pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.6
+
+jobs:
+  checks:
+    name: Analyze, format and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: dart pub get
+      - name: Analyze
+        run: dart run melos run analyze
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Test core
+        working-directory: packages/core
+        run: dart test
+      - name: Test app
+        working-directory: apps/sharely
+        run: flutter test
+
+  android:
+    name: Build Android APK
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: dart pub get
+      - name: Build APK
+        working-directory: apps/sharely
+        run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sharely-android-apk
+          path: apps/sharely/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+  windows:
+    name: Build Windows app
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: dart pub get
+      - name: Build Windows
+        working-directory: apps/sharely
+        run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sharely-windows
+          path: apps/sharely/build/windows/x64/runner/Release/
+          retention-days: 14
