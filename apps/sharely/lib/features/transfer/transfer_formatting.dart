@@ -17,9 +17,20 @@ String formatByteCount(int bytes) {
 String formatSpeed(double bytesPerSecond) =>
     '${formatByteCount(bytesPerSecond.round())}/s';
 
-String formatTimeLeft(Duration timeLeft) {
-  if (timeLeft.inSeconds < 60) return '${timeLeft.inSeconds} s left';
-  return '${timeLeft.inMinutes} min left';
+/// "12 s", "3 min", "2 h".
+String formatDurationShort(Duration duration) {
+  if (duration.inSeconds < 60) return '${duration.inSeconds} s';
+  if (duration.inMinutes < 60) return '${duration.inMinutes} min';
+  return '${duration.inHours} h';
+}
+
+/// "just now", "4 min ago", "2 h ago", "3 d ago".
+String formatTimeAgo(DateTime moment, {DateTime? now}) {
+  final elapsed = (now ?? DateTime.now()).difference(moment);
+  if (elapsed.inMinutes < 1) return 'just now';
+  if (elapsed.inHours < 1) return '${elapsed.inMinutes} min ago';
+  if (elapsed.inDays < 1) return '${elapsed.inHours} h ago';
+  return '${elapsed.inDays} d ago';
 }
 
 String formatFileCount(int count) => count == 1 ? '1 file' : '$count files';

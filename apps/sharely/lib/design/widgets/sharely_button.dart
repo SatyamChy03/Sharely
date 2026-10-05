@@ -14,12 +14,14 @@ class SharelyButton extends StatefulWidget {
     super.key,
     this.variant = SharelyButtonVariant.accent,
     this.trailingIcon,
+    this.leadingIcon,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final SharelyButtonVariant variant;
   final IconData? trailingIcon;
+  final IconData? leadingIcon;
 
   @override
   State<SharelyButton> createState() => _SharelyButtonState();
@@ -54,7 +56,11 @@ class _SharelyButtonState extends State<SharelyButton> {
           child: TextButton(
             onPressed: widget.onPressed == null ? null : _handlePressed,
             style: _buttonStyle(context),
-            child: _ButtonContent(widget.label, widget.trailingIcon),
+            child: _ButtonContent(
+              widget.label,
+              trailingIcon: widget.trailingIcon,
+              leadingIcon: widget.leadingIcon,
+            ),
           ),
         ),
       ),
@@ -95,18 +101,24 @@ class _SharelyButtonState extends State<SharelyButton> {
 }
 
 class _ButtonContent extends StatelessWidget {
-  const new(this.label, this.trailingIcon);
+  const new(this.label, {this.trailingIcon, this.leadingIcon});
 
   final String label;
   final IconData? trailingIcon;
+  final IconData? leadingIcon;
 
   @override
   Widget build(BuildContext context) {
-    final icon = trailingIcon;
+    final leading = leadingIcon;
+    final trailing = trailingIcon;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       spacing: SharelySpacing.sm,
-      children: [Text(label), if (icon != null) Icon(icon, size: 20)],
+      children: [
+        if (leading != null) Icon(leading, size: 20),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        if (trailing != null) Icon(trailing, size: 20),
+      ],
     );
   }
 }

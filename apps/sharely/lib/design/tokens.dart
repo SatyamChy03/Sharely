@@ -20,6 +20,12 @@ abstract final class SharelyColors {
   static const inkBorderStrong = Color(0xFF2B4D78);
   static const onInkMuted = Color(0xFF9DB0C8);
   static const onInkSoft = Color(0xFFDBE2EF);
+  static const onInkQuiet = Color(0xFFC3CFE0);
+
+  // Mist steps for placeholders, dashed drop zones and dividers on light.
+  static const mistLight = Color(0xFFE8EDF5);
+  static const mistMid = Color(0xFFC9D4E6);
+  static const mistDeep = Color(0xFFB8C6DD);
 }
 
 abstract final class SharelySpacing {

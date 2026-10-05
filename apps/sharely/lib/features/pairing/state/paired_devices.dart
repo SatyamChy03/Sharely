@@ -48,6 +48,32 @@ class PairedDevicesNotifier extends AsyncNotifier<List<PairedDevice>> {
     await _saveOrKeepInMemory(kept);
   }
 
+  /// Remembers whether offers from [deviceId] skip the accept prompt.
+  Future<void> setAlwaysAccept(String deviceId, {required bool isOn}) async {
+    final current = await future;
+    final updated = List<PairedDevice>.unmodifiable([
+      for (final device in current)
+        if (device.deviceId == deviceId)
+          device.copyWith(alwaysAccept: isOn)
+        else
+          device,
+    ]);
+    if (!ref.mounted) return;
+    state = AsyncData(updated);
+    await _saveOrKeepInMemory(updated);
+  }
+
+  /// Removes a device; it must pair again to send or receive anything.
+  Future<void> forget(String deviceId) async {
+    final current = await future;
+    final kept = List<PairedDevice>.unmodifiable(
+      current.where((device) => device.deviceId != deviceId),
+    );
+    if (!ref.mounted) return;
+    state = AsyncData(kept);
+    await _saveOrKeepInMemory(kept);
+  }
+
   Future<void> _saveOrKeepInMemory(List<PairedDevice> devices) async {
     try {
       await _store.savePairedDevices(devices);

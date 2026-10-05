@@ -6,6 +6,8 @@ import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/transfer/state/file_picking.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
+import 'package:sharely/features/transfer/state/recent_transfer.dart';
+import 'package:sharely/features/transfer/state/recent_transfers.dart';
 import 'package:sharely/features/transfer/state/send_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
@@ -32,9 +34,11 @@ class SendController extends Notifier<SendState> {
   }
 
   /// Returns false when the user picked nothing or the laptop isn't connected.
-  Future<bool> pickAndSend() async {
+  Future<bool> pickAndSend({bool photosOnly = false}) async {
     if (state is! SendIdle) return false;
-    final files = await ref.read(sendFilePickerProvider).pickFiles();
+    final files = await ref
+        .read(sendFilePickerProvider)
+        .pickFiles(photosOnly: photosOnly);
     final connection = ref.read(laptopConnectionProvider);
     if (files.isEmpty || connection is! LaptopConnected || !ref.mounted) {
       return false;
@@ -66,30 +70,26 @@ class SendController extends Notifier<SendState> {
     _transfer = transfer;
     _lastBytesSent = 0;
     _bytesPerSecond = 0;
-    final fileCount = transfer.files.length;
-    final totalBytes = transfer.totalBytes;
-    state = SendPreparing(fileCount: fileCount, totalBytes: totalBytes);
+    final files = List<SendFileInfo>.unmodifiable([
+      for (final file in transfer.files)
+        (name: file.name, sizeBytes: file.sizeBytes),
+    ]);
+    state = SendPreparing(files: files);
     transfer.updates.listen((update) {
       if (!ref.mounted) return;
       state = switch (update) {
         OutgoingTransferPreparing() => state,
         OutgoingTransferAwaitingAcceptance() => SendAwaitingAcceptance(
-          fileCount: fileCount,
-          totalBytes: totalBytes,
+          files: files,
         ),
         OutgoingTransferSending(:final bytesSent) => SendInProgress(
-          fileCount: fileCount,
-          totalBytes: totalBytes,
+          files: files,
           bytesSent: bytesSent,
           bytesPerSecond: _measureSpeed(bytesSent),
         ),
-        OutgoingTransferCompleted() => SendSucceeded(
-          fileCount: fileCount,
-          totalBytes: totalBytes,
-        ),
+        OutgoingTransferCompleted() => _succeed(files),
         OutgoingTransferFailed(:final reason) => SendFailed(
-          fileCount: fileCount,
-          totalBytes: totalBytes,
+          files: files,
           reason: reason,
         ),
       };
@@ -106,6 +106,20 @@ class SendController extends Notifier<SendState> {
     _transfer = null;
     if (!ref.mounted) return;
     await ref.read(sendFilePickerProvider).clearPickedCopies();
+  }
+
+  SendSucceeded _succeed(List<SendFileInfo> files) {
+    final now = DateTime.now();
+    ref.read(recentTransfersProvider.notifier).record([
+      for (final file in files)
+        RecentTransfer(
+          name: file.name,
+          sizeBytes: file.sizeBytes,
+          direction: TransferDirection.sent,
+          finishedAt: now,
+        ),
+    ]);
+    return SendSucceeded(files: files);
   }
 
   double _measureSpeed(int bytesSent) {

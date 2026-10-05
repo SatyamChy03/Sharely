@@ -12,8 +12,10 @@ class SendFilePicker {
   const new();
 
   /// Empty when the user backs out of the picker.
-  Future<List<OutgoingFile>> pickFiles() async {
-    final picked = await FilePicker.pickFiles();
+  Future<List<OutgoingFile>> pickFiles({bool photosOnly = false}) async {
+    final picked = await FilePicker.pickFiles(
+      type: photosOnly ? FileType.media : FileType.any,
+    );
     return await Future.wait(
       picked.map((file) async {
         final source = file.xFile;
