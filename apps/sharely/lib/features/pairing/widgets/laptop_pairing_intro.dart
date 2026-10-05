@@ -23,7 +23,11 @@ class LaptopPairingIntro extends StatelessWidget {
           style: textTheme.bodyLarge?.copyWith(color: SharelyColors.onInkSoft),
         ),
         const Gap(SharelySpacing.xl),
-        const _Step(number: '01', label: 'Install Sharely on your phone'),
+        _Step(
+          number: '01',
+          label: 'Install Sharely on your phone',
+          isDone: isPaired,
+        ),
         _Step(
           number: '02',
           label: 'Scan the code with the app',

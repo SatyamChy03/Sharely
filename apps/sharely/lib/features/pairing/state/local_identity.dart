@@ -22,10 +22,17 @@ final localHelloProvider = FutureProvider<HelloMessage>((ref) async {
 Future<String> _readDeviceName() async {
   if (Platform.isAndroid) {
     final info = await DeviceInfoPlugin().androidInfo;
-    return '${info.manufacturer} ${info.model}';
+    return _androidDeviceName(info.manufacturer, info.model);
   }
   if (Platform.isIOS) return (await DeviceInfoPlugin().iosInfo).name;
   return Platform.localHostname;
+}
+
+// Android reports brands in lowercase ("motorola"), and some models repeat it.
+String _androidDeviceName(String manufacturer, String model) {
+  if (model.toLowerCase().startsWith(manufacturer.toLowerCase())) return model;
+  final brand = manufacturer[0].toUpperCase() + manufacturer.substring(1);
+  return '$brand $model';
 }
 
 String _cleanDeviceName(String rawName) {
