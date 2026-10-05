@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.sharely.sharely"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android needs SDK 37 to compile; minSdk is unchanged.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
