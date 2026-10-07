@@ -48,22 +48,9 @@ class ScanScreen extends ConsumerWidget {
                 ),
               ),
               const Gap(SharelySpacing.xl),
-              // 360 high as designed, shrinking first on short phones.
-              const Flexible(
-                child: SizedBox(height: 360, child: ScanCameraArea()),
-              ),
+              // Takes the free space so the camera keeps its designed height.
+              Expanded(child: _ScanArea(pairingState: pairingState)),
               const Gap(SharelySpacing.lg),
-              if (pairingState is PhoneConnecting ||
-                  pairingState is PhonePairingFailed)
-                ScanStatusCard(
-                  state: pairingState,
-                  onScanAgain: ref
-                      .read(phonePairingProvider.notifier)
-                      .scanAgain,
-                )
-              else
-                const NoCodeHintCard(),
-              const Spacer(),
               SharelyButton(
                 label: 'Type a 6-digit code instead',
                 variant: SharelyButtonVariant.outline,
@@ -76,6 +63,33 @@ class ScanScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ScanArea extends ConsumerWidget {
+  const new({required this.pairingState});
+
+  final PhonePairingState pairingState;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isShowingStatus =
+        pairingState is PhoneConnecting || pairingState is PhonePairingFailed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 360 high as designed, shrinking only on short phones.
+        const Flexible(child: SizedBox(height: 360, child: ScanCameraArea())),
+        const Gap(SharelySpacing.lg),
+        if (isShowingStatus)
+          ScanStatusCard(
+            state: pairingState,
+            onScanAgain: ref.read(phonePairingProvider.notifier).scanAgain,
+          )
+        else
+          const NoCodeHintCard(),
+      ],
     );
   }
 }
