@@ -4,6 +4,9 @@ library;
 
 export 'src/discovery/discovery_responder.dart';
 export 'src/discovery/laptop_locator.dart';
+export 'src/history/transfer_history_entry.dart';
+export 'src/history/transfer_history_records.dart' show maxHistoryEntries;
+export 'src/history/transfer_history_store.dart';
 export 'src/pairing/device_endpoint.dart';
 export 'src/pairing/lan_address.dart';
 export 'src/pairing/laptop_finder.dart';
