@@ -4,7 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:sharely_core/src/transfer/mime_types.dart';
 
-/// Opens a fresh read of the file's bytes; called once to hash, once to send.
+/// Opens a read of the file's bytes; called once per upload.
 typedef OpenFileRead = Stream<List<int>> Function();
 
 /// A local file this device is about to offer.

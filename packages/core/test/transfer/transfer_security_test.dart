@@ -2,26 +2,28 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:sharely_core/sharely_core.dart';
+import 'package:sharely_core/src/transfer/upload_checksum.dart';
+import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
 import 'package:test/test.dart';
 
 import 'transfer_harness.dart';
 
 const _transferId = 'transfer_0123456789';
 
-OfferMessage _offerFor(List<int> bytes, {String name = 'a.txt', String? hash}) {
+OfferMessage _offerFor(List<int> bytes, {String name = 'a.txt'}) {
   return OfferMessage(
     transferId: _transferId,
     files: [
-      OfferedFile(
-        name: name,
-        sizeBytes: bytes.length,
-        mimeType: 'text/plain',
-        sha256: hash ?? sha256.convert(bytes).toString(),
-      ),
+      OfferedFile(name: name, sizeBytes: bytes.length, mimeType: 'text/plain'),
     ],
   );
+}
+
+/// An upload body: [bytes], then the checksum of [checksumOf] (or [bytes]).
+List<int> _bodyFor(List<int> bytes, {List<int>? checksumOf}) {
+  final hasher = Xxh64Accumulator()..add(checksumOf ?? bytes);
+  return [...bytes, ...encodeUploadChecksum(hasher.finish())];
 }
 
 Future<int> _put(
@@ -95,7 +97,7 @@ void main() {
 
       final status = await _put(
         harness,
-        'mine'.codeUnits,
+        _bodyFor('mine'.codeUnits),
         headers: harness.authHeadersFor(otherPhone),
       );
 
@@ -107,7 +109,7 @@ void main() {
     test('are refused before the laptop accepts', () async {
       await _offer(harness, _offerFor('x'.codeUnits), accept: false);
 
-      expect(await _put(harness, 'x'.codeUnits), 409);
+      expect(await _put(harness, _bodyFor('x'.codeUnits)), 409);
     });
 
     test('with altered bytes are discarded as corrupted', () async {
@@ -116,8 +118,28 @@ void main() {
           .first;
       await _offer(harness, _offerFor('original'.codeUnits));
 
-      expect(await _put(harness, 'tampered'.codeUnits), 422);
+      final tampered = _bodyFor(
+        'tampered'.codeUnits,
+        checksumOf: 'original'.codeUnits,
+      );
+
+      expect(await _put(harness, tampered), 422);
       expect((await ended).reason, TransferFailure.corrupted);
+      expect(harness.savedFiles(), isEmpty);
+    });
+
+    test('with a wrong checksum are discarded as corrupted', () async {
+      await _offer(harness, _offerFor('original'.codeUnits));
+      final body = _bodyFor('original'.codeUnits)..last ^= 1;
+
+      expect(await _put(harness, body), 422);
+      expect(harness.savedFiles(), isEmpty);
+    });
+
+    test('without the trailing checksum are discarded', () async {
+      await _offer(harness, _offerFor('original'.codeUnits));
+
+      expect(await _put(harness, 'original'.codeUnits), 422);
       expect(harness.savedFiles(), isEmpty);
     });
 
@@ -147,9 +169,9 @@ void main() {
     test('of the same file twice are refused', () async {
       final bytes = List.filled(256 * 1024, 1);
       await _offer(harness, _offerFor(bytes));
-      final first = _put(harness, bytes);
+      final first = _put(harness, _bodyFor(bytes));
 
-      expect(await _put(harness, bytes), 409);
+      expect(await _put(harness, _bodyFor(bytes)), 409);
       await first;
     });
 
@@ -158,7 +180,7 @@ void main() {
 
       final status = await _put(
         harness,
-        'x'.codeUnits,
+        _bodyFor('x'.codeUnits),
         path: '/v1/transfers/$_transferId/7',
       );
 
@@ -169,7 +191,7 @@ void main() {
       final bytes = utf8.encode('escape attempt');
       await _offer(harness, _offerFor(bytes, name: '../../outside.txt'));
 
-      expect(await _put(harness, bytes), 204);
+      expect(await _put(harness, _bodyFor(bytes)), 204);
       final saved = harness.savedFiles().single;
       expect(saved.parent.path, harness.saveDirectory.path);
     });
@@ -178,11 +200,17 @@ void main() {
   group('control channel', () {
     test('a malformed frame closes the connection', () async {
       final connection = await harness.connect();
-      final offerWithoutChecksum = jsonEncode({
+      // The checksum field older versions put in offers is now unknown.
+      final offerWithUnknownField = jsonEncode({
         'type': 'offer',
         'transferId': _transferId,
         'files': [
-          {'name': 'a.txt', 'size': 1, 'mime': 'text/plain'},
+          {
+            'name': 'a.txt',
+            'size': 1,
+            'mime': 'text/plain',
+            'sha256': 'ab' * 32,
+          },
         ],
       });
       final socket =
@@ -190,7 +218,7 @@ void main() {
               harness.endpoint.webSocketUri('/v1/control').toString(),
               headers: harness.authHeadersFor(otherPhone),
             )
-            ..add(offerWithoutChecksum);
+            ..add(offerWithUnknownField);
 
       await socket.drain<void>().timeout(const Duration(seconds: 5));
 

@@ -7,13 +7,14 @@ import 'package:sharely_core/src/security/secure_id.dart';
 import 'package:sharely_core/src/transfer/control_connection.dart';
 import 'package:sharely_core/src/transfer/outgoing_file.dart';
 import 'package:sharely_core/src/transfer/outgoing_transfer_update.dart';
-import 'package:sharely_core/src/transfer/sha256_accumulator.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/transfer_paths.dart';
+import 'package:sharely_core/src/transfer/upload_checksum.dart';
+import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
 
 const _progressReportInterval = Duration(milliseconds: 100);
 
-/// Phone side of one send: checksum, offer, wait for accept, then upload.
+/// Phone side of one send: offer, wait for accept, then upload.
 ///
 /// Watch [updates], await [done] (throws [TransferException]), or [cancel].
 class OutgoingTransfer {
@@ -77,8 +78,14 @@ class OutgoingTransfer {
     final subscription = _connection.messages.listen(_handleMessage);
     unawaited(_connection.done.then((_) => _stop(TransferFailure.unreachable)));
     try {
-      final offeredFiles = await _checksumFiles();
-      await _offerAndAwaitAcceptance(offeredFiles);
+      await _offerAndAwaitAcceptance([
+        for (final file in files)
+          OfferedFile(
+            name: file.name,
+            sizeBytes: file.sizeBytes,
+            mimeType: file.mimeType,
+          ),
+      ]);
       var bytesBefore = 0;
       for (var index = 0; index < files.length; index++) {
         await _uploadFile(index, bytesBefore);
@@ -96,36 +103,6 @@ class OutgoingTransfer {
       await subscription.cancel();
       await _updates.close();
     }
-  }
-
-  Future<List<OfferedFile>> _checksumFiles() async {
-    final offered = <OfferedFile>[];
-    for (final file in files) {
-      _emit(
-        OutgoingTransferPreparing(
-          filesReady: offered.length,
-          fileCount: files.length,
-        ),
-      );
-      offered.add(
-        OfferedFile(
-          name: file.name,
-          sizeBytes: file.sizeBytes,
-          mimeType: file.mimeType,
-          sha256: await _checksum(file),
-        ),
-      );
-    }
-    return offered;
-  }
-
-  Future<String> _checksum(OutgoingFile file) async {
-    final hasher = Sha256Accumulator();
-    await for (final chunk in file.openRead()) {
-      _throwIfStopped();
-      hasher.add(chunk);
-    }
-    return hasher.finish();
   }
 
   Future<void> _offerAndAwaitAcceptance(List<OfferedFile> offeredFiles) async {
@@ -157,18 +134,13 @@ class OutgoingTransfer {
       _throwIfStopped();
       _authHeaders.forEach(request.headers.set);
       request.headers.contentType = ContentType.binary;
-      request.contentLength = file.sizeBytes;
-      var bytesSent = 0;
-      await request.addStream(
-        file.openRead().map((chunk) {
-          bytesSent += chunk.length;
-          _reportSending(bytesBefore + bytesSent);
-          return chunk;
-        }),
-      );
+      request.contentLength = file.sizeBytes + uploadChecksumBytes;
+      await _streamFileWithChecksum(request, file, bytesBefore);
       final response = await request.close();
       await response.drain<void>();
       _checkUploadAccepted(response.statusCode);
+    } on FileSystemException {
+      rethrow;
     } on IOException {
       _throwIfStopped();
       throw const TransferException(TransferFailure.unreachable);
@@ -176,6 +148,31 @@ class OutgoingTransfer {
       _activeUpload = null;
       client.close(force: true);
     }
+  }
+
+  /// Hashes while sending, so the file is read from disk exactly once.
+  Future<void> _streamFileWithChecksum(
+    HttpClientRequest request,
+    OutgoingFile file,
+    int bytesBefore,
+  ) async {
+    final hasher = Xxh64Accumulator();
+    var bytesSent = 0;
+    await request.addStream(
+      file.openRead().map((chunk) {
+        bytesSent += chunk.length;
+        if (bytesSent > file.sizeBytes) {
+          throw FileSystemException('Grew while sending', file.name);
+        }
+        hasher.add(chunk);
+        _reportSending(bytesBefore + bytesSent);
+        return chunk;
+      }),
+    );
+    if (bytesSent != file.sizeBytes) {
+      throw FileSystemException('Shrank while sending', file.name);
+    }
+    request.add(encodeUploadChecksum(hasher.finish()));
   }
 
   void _checkUploadAccepted(int statusCode) {

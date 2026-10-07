@@ -78,7 +78,6 @@ class SendController extends Notifier<SendState> {
     transfer.updates.listen((update) {
       if (!ref.mounted) return;
       state = switch (update) {
-        OutgoingTransferPreparing() => state,
         OutgoingTransferAwaitingAcceptance() => SendAwaitingAcceptance(
           files: files,
         ),

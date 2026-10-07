@@ -5,14 +5,6 @@ sealed class OutgoingTransferUpdate {
   const new();
 }
 
-/// Checksumming files before the offer goes out.
-final class OutgoingTransferPreparing extends OutgoingTransferUpdate {
-  const new({required this.filesReady, required this.fileCount});
-
-  final int filesReady;
-  final int fileCount;
-}
-
 final class OutgoingTransferAwaitingAcceptance extends OutgoingTransferUpdate {
   const new();
 }

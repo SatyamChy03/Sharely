@@ -10,6 +10,7 @@ import 'package:sharely_core/src/transfer/incoming_file_writer.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer_event.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
+import 'package:sharely_core/src/transfer/upload_checksum.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
@@ -85,7 +86,8 @@ class TransferReceiver {
     }
     final expected = transfer.offer.files[fileIndex];
     final declaredLength = request.contentLength;
-    if (declaredLength != null && declaredLength != expected.sizeBytes) {
+    if (declaredLength != null &&
+        declaredLength != expected.sizeBytes + uploadChecksumBytes) {
       _end(transferId, TransferFailure.corrupted, notifySender: true);
       return Response.badRequest();
     }
