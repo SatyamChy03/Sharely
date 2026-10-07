@@ -33,6 +33,13 @@ String formatTimeAgo(DateTime moment, {DateTime? now}) {
   return '${elapsed.inDays} d ago';
 }
 
+/// "09:05", in the device's local time.
+String formatClockTime(DateTime moment) {
+  String twoDigits(int value) => value.toString().padLeft(2, '0');
+  final local = moment.toLocal();
+  return '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+}
+
 String formatFileCount(int count) => count == 1 ? '1 file' : '$count files';
 
 /// What went wrong for the sender, with the one thing to try next.

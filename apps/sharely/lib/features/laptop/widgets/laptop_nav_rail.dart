@@ -3,10 +3,20 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/widgets/sharely_logo.dart';
 
+enum LaptopSection { home, history }
+
 /// Ink side rail on the laptop: logo, sections, and settings at the bottom.
 class LaptopNavRail extends StatelessWidget {
-  const new({required this.onDevices, required this.onComingSoon, super.key});
+  const new({
+    required this.selected,
+    required this.onSelect,
+    required this.onDevices,
+    required this.onComingSoon,
+    super.key,
+  });
 
+  final LaptopSection selected;
+  final ValueChanged<LaptopSection> onSelect;
   final VoidCallback onDevices;
   final ValueChanged<String> onComingSoon;
 
@@ -23,15 +33,17 @@ class LaptopNavRail extends StatelessWidget {
             child: Center(child: SharelyLogoMark(size: 34)),
           ),
           const SizedBox(height: SharelySpacing.lg),
-          const _RailButton(
+          _RailButton(
             icon: LucideIcons.house,
             label: 'Home',
-            isSelected: true,
+            isSelected: selected == LaptopSection.home,
+            onTap: () => onSelect(LaptopSection.home),
           ),
           _RailButton(
             icon: LucideIcons.clock,
             label: 'History',
-            onTap: () => onComingSoon('Full history'),
+            isSelected: selected == LaptopSection.history,
+            onTap: () => onSelect(LaptopSection.history),
           ),
           _RailButton(
             icon: LucideIcons.smartphone,

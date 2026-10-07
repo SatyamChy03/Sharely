@@ -12,37 +12,22 @@ final _log = Logger('Activity');
 
 /// One activity line: a type tile, name, direction and size, then Show.
 class ActivityRow extends StatelessWidget {
-  const new({required this.transfer, super.key});
+  const new({required this.transfer, this.showsTime = false, super.key});
 
   final RecentTransfer transfer;
+
+  /// History adds the clock time; the Home panel stays compact.
+  final bool showsTime;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isReceived = transfer.direction == TransferDirection.received;
-    final dot = transfer.name.lastIndexOf('.');
-    final extension = dot > 0 ? transfer.name.substring(dot + 1) : '';
     final savedFile = transfer.savedFile;
     return Row(
       spacing: SharelySpacing.md,
       children: [
-        Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isReceived ? SharelyColors.ink : SharelyColors.mistLight,
-            borderRadius: const BorderRadius.all(Radius.circular(11)),
-          ),
-          child: Text(
-            extension.isEmpty ? 'FILE' : extension.toUpperCase(),
-            maxLines: 1,
-            style: sharelyMonoStyle(
-              size: 10,
-              color: isReceived ? SharelyColors.accentOnInk : SharelyColors.ink,
-            ),
-          ),
-        ),
+        _FileTypeTile(fileName: transfer.name, isReceived: isReceived),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,6 +51,11 @@ class ActivityRow extends StatelessWidget {
             ],
           ),
         ),
+        if (showsTime)
+          Text(
+            formatClockTime(transfer.finishedAt),
+            style: sharelyMonoStyle(size: 12, color: SharelyColors.slate),
+          ),
         if (savedFile != null)
           TextButton(
             onPressed: () => unawaited(_showInFolder(savedFile.parent.path)),
@@ -79,5 +69,35 @@ class ActivityRow extends StatelessWidget {
     if (!await launchUrl(Uri.directory(folderPath))) {
       _log.warning('No app could open the save folder');
     }
+  }
+}
+
+class _FileTypeTile extends StatelessWidget {
+  const new({required this.fileName, required this.isReceived});
+
+  final String fileName;
+  final bool isReceived;
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = fileName.lastIndexOf('.');
+    final extension = dot > 0 ? fileName.substring(dot + 1) : '';
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isReceived ? SharelyColors.ink : SharelyColors.mistLight,
+        borderRadius: const BorderRadius.all(Radius.circular(11)),
+      ),
+      child: Text(
+        extension.isEmpty ? 'FILE' : extension.toUpperCase(),
+        maxLines: 1,
+        style: sharelyMonoStyle(
+          size: 10,
+          color: isReceived ? SharelyColors.accentOnInk : SharelyColors.ink,
+        ),
+      ),
+    );
   }
 }

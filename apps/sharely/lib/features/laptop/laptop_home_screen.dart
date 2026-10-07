@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/features/laptop/laptop_history_view.dart';
 import 'package:sharely/features/laptop/widgets/activity_panel.dart';
 import 'package:sharely/features/laptop/widgets/drop_zone_card.dart';
 import 'package:sharely/features/laptop/widgets/laptop_nav_rail.dart';
@@ -13,14 +14,24 @@ import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/connected_phones.dart';
 import 'package:sharely/features/transfer/widgets/incoming_transfers_overlay.dart';
 
-/// Laptop home once paired: send to the phone, and see what arrived.
-class LaptopHomeScreen extends ConsumerWidget {
+/// Laptop shell once paired: Home and History beside one side rail.
+class LaptopHomeScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
+  @override
+  ConsumerState<LaptopHomeScreen> createState() => _LaptopHomeScreenState();
+}
+
+class _LaptopHomeScreenState extends ConsumerState<LaptopHomeScreen> {
   static const _wideLayoutMinWidth = 900.0;
 
+  LaptopSection _section = LaptopSection.home;
+
+  void _showSection(LaptopSection section) =>
+      setState(() => _section = section);
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // Watching keeps the laptop's server running while this screen shows.
     ref.watch(laptopPairingProvider);
     final devices = ref.watch(pairedDevicesProvider).value ?? const [];
@@ -35,17 +46,22 @@ class LaptopHomeScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               LaptopNavRail(
-                onDevices: () => _openPairing(context, ref),
-                onComingSoon: (feature) => _explainComingSoon(context, feature),
+                selected: _section,
+                onSelect: _showSection,
+                onDevices: _openPairing,
+                onComingSoon: _explainComingSoon,
               ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => _buildMain(
-                    phoneName: phone?.deviceName ?? 'your phone',
-                    isConnected: isConnected,
-                    isWide: constraints.maxWidth >= _wideLayoutMinWidth,
+                child: switch (_section) {
+                  LaptopSection.history => const LaptopHistoryView(),
+                  LaptopSection.home => LayoutBuilder(
+                    builder: (context, constraints) => _buildHome(
+                      phoneName: phone?.deviceName ?? 'your phone',
+                      isConnected: isConnected,
+                      isWide: constraints.maxWidth >= _wideLayoutMinWidth,
+                    ),
                   ),
-                ),
+                },
               ),
             ],
           ),
@@ -55,7 +71,7 @@ class LaptopHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMain({
+  Widget _buildHome({
     required String phoneName,
     required bool isConnected,
     required bool isWide,
@@ -64,7 +80,9 @@ class LaptopHomeScreen extends ConsumerWidget {
       phoneName: phoneName,
       isConnected: isConnected,
     );
-    const activity = ActivityPanel();
+    final activity = ActivityPanel(
+      onSeeAll: () => _showSection(LaptopSection.history),
+    );
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
       child: isWide
@@ -73,19 +91,19 @@ class LaptopHomeScreen extends ConsumerWidget {
               spacing: 24,
               children: [
                 Expanded(flex: 2, child: sendColumn),
-                const Expanded(child: activity),
+                Expanded(child: activity),
               ],
             )
           : Column(spacing: 24, children: [sendColumn, activity]),
     );
   }
 
-  void _openPairing(BuildContext context, WidgetRef ref) {
+  void _openPairing() {
     ref.read(laptopPairingProvider.notifier).showNewCode();
     context.go(AppRoutes.laptopPairing);
   }
 
-  void _explainComingSoon(BuildContext context, String feature) {
+  void _explainComingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$feature arrives in a later update.')),
     );
