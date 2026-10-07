@@ -82,6 +82,17 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
     state = AsyncData(_startWaiting());
   }
 
+  /// Withdraws the code on show, so it cannot be redeemed once hidden.
+  void stopPairing() {
+    if (state.value is! LaptopWaitingForPhone) return;
+    final pairedDevices = ref.read(pairedDevicesProvider).value ?? const [];
+    // With nothing paired the get-started screen still needs its code.
+    if (pairedDevices.isEmpty) return;
+    _expiryTimer?.cancel();
+    _session = null;
+    state = AsyncData(LaptopPairedWithPhone(pairedDevices.last));
+  }
+
   LaptopPairingState _startWaiting() {
     final session = PairingSession();
     _session = session;

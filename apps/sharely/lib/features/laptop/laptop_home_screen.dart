@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/features/laptop/laptop_devices_view.dart';
 import 'package:sharely/features/laptop/laptop_history_view.dart';
 import 'package:sharely/features/laptop/widgets/activity_panel.dart';
 import 'package:sharely/features/laptop/widgets/drop_zone_card.dart';
@@ -14,7 +13,7 @@ import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/connected_phones.dart';
 import 'package:sharely/features/transfer/widgets/incoming_transfers_overlay.dart';
 
-/// Laptop shell once paired: Home and History beside one side rail.
+/// Laptop shell once paired: Home, History and Devices beside one rail.
 class LaptopHomeScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -27,8 +26,11 @@ class _LaptopHomeScreenState extends ConsumerState<LaptopHomeScreen> {
 
   LaptopSection _section = LaptopSection.home;
 
-  void _showSection(LaptopSection section) =>
-      setState(() => _section = section);
+  void _showSection(LaptopSection section) {
+    // A pairing code must not stay redeemable after its QR is hidden.
+    ref.read(laptopPairingProvider.notifier).stopPairing();
+    setState(() => _section = section);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,12 +50,12 @@ class _LaptopHomeScreenState extends ConsumerState<LaptopHomeScreen> {
               LaptopNavRail(
                 selected: _section,
                 onSelect: _showSection,
-                onDevices: _openPairing,
                 onComingSoon: _explainComingSoon,
               ),
               Expanded(
                 child: switch (_section) {
                   LaptopSection.history => const LaptopHistoryView(),
+                  LaptopSection.devices => const LaptopDevicesView(),
                   LaptopSection.home => LayoutBuilder(
                     builder: (context, constraints) => _buildHome(
                       phoneName: phone?.deviceName ?? 'your phone',
@@ -96,11 +98,6 @@ class _LaptopHomeScreenState extends ConsumerState<LaptopHomeScreen> {
             )
           : Column(spacing: 24, children: [sendColumn, activity]),
     );
-  }
-
-  void _openPairing() {
-    ref.read(laptopPairingProvider.notifier).showNewCode();
-    context.go(AppRoutes.laptopPairing);
   }
 
   void _explainComingSoon(String feature) {

@@ -3,21 +3,19 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/widgets/sharely_logo.dart';
 
-enum LaptopSection { home, history }
+enum LaptopSection { home, history, devices }
 
 /// Ink side rail on the laptop: logo, sections, and settings at the bottom.
 class LaptopNavRail extends StatelessWidget {
   const new({
     required this.selected,
     required this.onSelect,
-    required this.onDevices,
     required this.onComingSoon,
     super.key,
   });
 
   final LaptopSection selected;
   final ValueChanged<LaptopSection> onSelect;
-  final VoidCallback onDevices;
   final ValueChanged<String> onComingSoon;
 
   @override
@@ -48,7 +46,8 @@ class LaptopNavRail extends StatelessWidget {
           _RailButton(
             icon: LucideIcons.smartphone,
             label: 'Devices',
-            onTap: onDevices,
+            isSelected: selected == LaptopSection.devices,
+            onTap: () => onSelect(LaptopSection.devices),
           ),
           const Spacer(),
           _RailButton(
