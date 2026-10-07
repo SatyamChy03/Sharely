@@ -13,6 +13,11 @@ class _FixedPairedDevices extends PairedDevicesNotifier {
 
   @override
   Future<List<PairedDevice>> build() async => _devices;
+
+  @override
+  Future<void> trust(PairedDevice device) async {
+    state = AsyncData([device]);
+  }
 }
 
 PairedDevice _laptop({DeviceEndpoint? endpoint}) => PairedDevice(
@@ -27,6 +32,7 @@ PairedDevice _laptop({DeviceEndpoint? endpoint}) => PairedDevice(
 Future<ProviderContainer> _phoneWith(
   List<PairedDevice> devices, {
   ControlConnector? connector,
+  LaptopAddressLookup? addressLookup,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -40,6 +46,9 @@ Future<ProviderContainer> _phoneWith(
       ),
       if (connector != null)
         controlConnectorProvider.overrideWithValue(connector),
+      laptopAddressLookupProvider.overrideWithValue(
+        addressLookup ?? (laptop, localDeviceId) async => null,
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -92,5 +101,34 @@ void main() {
       isA<LaptopConnecting>(),
       isA<LaptopUnreachable>(),
     ]);
+  });
+
+  test('a laptop that moved is followed to its new address', () async {
+    final oldEndpoint = DeviceEndpoint.parse(host: '172.25.8.25', port: 53891);
+    final newEndpoint = DeviceEndpoint.parse(
+      host: '172.25.13.173',
+      port: 53891,
+    );
+    final triedEndpoints = <DeviceEndpoint>[];
+    final phone = await _phoneWith(
+      [_laptop(endpoint: oldEndpoint)],
+      connector: (endpoint, authHeaders) async {
+        triedEndpoints.add(endpoint);
+        throw const TransferException(TransferFailure.unreachable);
+      },
+      addressLookup: (laptop, localDeviceId) async {
+        expect(localDeviceId, 'phone_0123456789abc');
+        return newEndpoint;
+      },
+    );
+    phone.listen(laptopConnectionProvider, (_, _) {}, fireImmediately: true);
+    await pumpEventQueue();
+
+    expect(triedEndpoints, [oldEndpoint, newEndpoint]);
+    expect(
+      phone.read(pairedDevicesProvider).value?.single.endpoint,
+      newEndpoint,
+    );
+    expect(phone.read(laptopConnectionProvider), isA<LaptopUnreachable>());
   });
 }

@@ -14,11 +14,32 @@ typedef ControlConnector = Future<ControlConnection> Function(
   Map<String, String> authHeaders,
 );
 
+// A laptop on the same Wi-Fi answers at once; waiting longer only delays
+// looking for it at a new address.
+const _connectTimeout = Duration(seconds: 4);
+
 /// Overridden in tests to connect without a real laptop.
 final controlConnectorProvider = Provider<ControlConnector>(
   (ref) =>
-      (endpoint, authHeaders) =>
-          ControlConnection.connect(endpoint, authHeaders: authHeaders),
+      (endpoint, authHeaders) => ControlConnection.connect(
+        endpoint,
+        authHeaders: authHeaders,
+        timeout: _connectTimeout,
+      ),
+);
+
+typedef LaptopAddressLookup = Future<DeviceEndpoint?> Function(
+  PairedDevice laptop,
+  String localDeviceId,
+);
+
+/// Asks the Wi-Fi where the laptop is now. Overridden in tests.
+final laptopAddressLookupProvider = Provider<LaptopAddressLookup>(
+  (ref) =>
+      (laptop, localDeviceId) => const LaptopLocator().locate(
+        laptop: laptop,
+        localDeviceId: localDeviceId,
+      ),
 );
 
 final laptopConnectionProvider =
@@ -58,8 +79,8 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
   Future<void> _connect(PairedDevice laptop) async {
     final endpoint = laptop.endpoint;
     if (endpoint == null) return;
+    final localHello = await ref.read(localHelloProvider.future);
     try {
-      final localHello = await ref.read(localHelloProvider.future);
       final connection = await ref.read(controlConnectorProvider)(
         endpoint,
         buildAuthHeaders(
@@ -71,9 +92,30 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
       _adopt(laptop, connection);
     } on TransferException {
       if (!ref.mounted) return;
+      if (await _followLaptopToNewAddress(laptop, localHello.deviceId)) return;
+      if (!ref.mounted) return;
       state = LaptopUnreachable(laptop);
       _scheduleRetry(laptop);
     }
+  }
+
+  /// Routers reassign addresses, so a silent laptop may only have moved.
+  /// Saving the new address rebuilds this controller, which reconnects.
+  Future<bool> _followLaptopToNewAddress(
+    PairedDevice laptop,
+    String localDeviceId,
+  ) async {
+    final current = await ref.read(laptopAddressLookupProvider)(
+      laptop,
+      localDeviceId,
+    );
+    if (!ref.mounted || current == null || current == laptop.endpoint) {
+      return false;
+    }
+    await ref
+        .read(pairedDevicesProvider.notifier)
+        .trust(laptop.copyWith(endpoint: current));
+    return true;
   }
 
   void _adopt(PairedDevice laptop, ControlConnection connection) {
