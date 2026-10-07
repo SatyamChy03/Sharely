@@ -2,6 +2,8 @@
 /// TLS pinning. Pure Dart, so it must not import Flutter.
 library;
 
+export 'src/discovery/discovery_responder.dart';
+export 'src/discovery/laptop_locator.dart';
 export 'src/pairing/device_endpoint.dart';
 export 'src/pairing/lan_address.dart';
 export 'src/pairing/laptop_finder.dart';
