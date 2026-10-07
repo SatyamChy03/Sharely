@@ -40,8 +40,6 @@ class _FixedPairedDevices extends PairedDevicesNotifier {
 }
 
 class _FakeFilePicker extends SendFilePicker {
-  const new();
-
   @override
   Future<List<OutgoingFile>> pickFiles({bool photosOnly = false}) async => [
     OutgoingFile(
@@ -53,7 +51,7 @@ class _FakeFilePicker extends SendFilePicker {
   ];
 
   @override
-  Future<void> clearPickedCopies() async {}
+  Future<void> releasePickedFiles() async {}
 }
 
 /// Resolves once [provider] reaches a state matching [isWanted].
@@ -116,7 +114,7 @@ void main() {
           () => _FixedPairedDevices([laptopRecord]),
         ),
         localHelloProvider.overrideWith((ref) async => _phoneHello),
-        sendFilePickerProvider.overrideWithValue(const _FakeFilePicker()),
+        sendFilePickerProvider.overrideWithValue(_FakeFilePicker()),
       ],
     );
     addTearDown(() async {

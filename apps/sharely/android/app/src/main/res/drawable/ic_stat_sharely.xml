@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Sharely mark (an S curve between two dots) as a status bar icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:pathData="M16,18 C54,18 10,46 48,46"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9,18a7,7 0,1 0,14 0a7,7 0,1 0,-14 0z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M41,46a7,7 0,1 0,14 0a7,7 0,1 0,-14 0z" />
+</vector>

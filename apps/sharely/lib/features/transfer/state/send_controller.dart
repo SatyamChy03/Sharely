@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:sharely/app/android/background_transfer.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
+import 'package:sharely/features/transfer/state/background_send_notice.dart';
 import 'package:sharely/features/transfer/state/file_picking.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
@@ -36,15 +38,17 @@ class SendController extends Notifier<SendState> {
   /// Returns false when the user picked nothing or the laptop isn't connected.
   Future<bool> pickAndSend({bool photosOnly = false}) async {
     if (state is! SendIdle) return false;
-    final files = await ref
-        .read(sendFilePickerProvider)
-        .pickFiles(photosOnly: photosOnly);
+    final picker = ref.read(sendFilePickerProvider);
+    final files = await picker.pickFiles(photosOnly: photosOnly);
+    if (files.isEmpty || !ref.mounted) return false;
     final connection = ref.read(laptopConnectionProvider);
-    if (files.isEmpty || connection is! LaptopConnected || !ref.mounted) {
+    final endpoint = connection is LaptopConnected
+        ? connection.laptop.endpoint
+        : null;
+    if (connection is! LaptopConnected || endpoint == null) {
+      await picker.releasePickedFiles();
       return false;
     }
-    final endpoint = connection.laptop.endpoint;
-    if (endpoint == null) return false;
     final localHello = await ref.read(localHelloProvider.future);
     final transfer = OutgoingTransfer.start(
       files: files,
@@ -55,7 +59,15 @@ class SendController extends Notifier<SendState> {
         authToken: connection.laptop.authToken,
       ),
     );
-    _track(transfer);
+    final notice = BackgroundSendNotice(
+      ref.read(backgroundTransferProvider),
+      laptopName: connection.laptop.deviceName,
+      fileCount: files.length,
+      totalBytes: transfer.totalBytes,
+    );
+    unawaited(notice.start(onCancelRequested: cancel));
+    _track(transfer, notice);
+    unawaited(_finish(transfer, notice, picker));
     return true;
   }
 
@@ -66,7 +78,7 @@ class SendController extends Notifier<SendState> {
     if (state is SendWithFiles && _transfer == null) state = const SendIdle();
   }
 
-  void _track(OutgoingTransfer transfer) {
+  void _track(OutgoingTransfer transfer, BackgroundSendNotice notice) {
     _transfer = transfer;
     _lastBytesSent = 0;
     _bytesPerSecond = 0;
@@ -81,10 +93,10 @@ class SendController extends Notifier<SendState> {
         OutgoingTransferAwaitingAcceptance() => SendAwaitingAcceptance(
           files: files,
         ),
-        OutgoingTransferSending(:final bytesSent) => SendInProgress(
-          files: files,
-          bytesSent: bytesSent,
-          bytesPerSecond: _measureSpeed(bytesSent),
+        OutgoingTransferSending(:final bytesSent) => _showProgress(
+          files,
+          bytesSent,
+          notice,
         ),
         OutgoingTransferCompleted() => _succeed(files),
         OutgoingTransferFailed(:final reason) => SendFailed(
@@ -93,18 +105,37 @@ class SendController extends Notifier<SendState> {
         ),
       };
     });
-    unawaited(_finish(transfer));
   }
 
-  Future<void> _finish(OutgoingTransfer transfer) async {
+  SendInProgress _showProgress(
+    List<SendFileInfo> files,
+    int bytesSent,
+    BackgroundSendNotice notice,
+  ) {
+    final bytesPerSecond = _measureSpeed(bytesSent);
+    notice.showProgress(bytesSent: bytesSent, bytesPerSecond: bytesPerSecond);
+    return SendInProgress(
+      files: files,
+      bytesSent: bytesSent,
+      bytesPerSecond: bytesPerSecond,
+    );
+  }
+
+  Future<void> _finish(
+    OutgoingTransfer transfer,
+    BackgroundSendNotice notice,
+    SendFilePicker picker,
+  ) async {
+    TransferFailure? failure;
     try {
       await transfer.done;
     } on TransferException catch (error) {
-      _log.info('Send ended: ${error.failure.name}');
+      failure = error.failure;
+      _log.info('Send ended: ${failure.name}');
     }
     _transfer = null;
-    if (!ref.mounted) return;
-    await ref.read(sendFilePickerProvider).clearPickedCopies();
+    await notice.end(failure);
+    await picker.releasePickedFiles();
   }
 
   SendSucceeded _succeed(List<SendFileInfo> files) {
