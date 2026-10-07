@@ -137,4 +137,41 @@ void main() {
       ['TODAY', 'YESTERDAY', 'EARLIER'],
     );
   });
+
+  testWidgets('one entry can be removed and the rest cleared', (tester) async {
+    final container = await _pumpLaptopHome(tester);
+    container.read(recentTransfersProvider.notifier).record([
+      _received('holiday.png', 2500000, DateTime.now()),
+      _received('notes.pdf', 500000, DateTime.now()),
+    ]);
+    await tester.tap(find.byTooltip('History'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byTooltip('Remove from history').first);
+    await tester.pump();
+    expect(find.text('holiday.png'), findsNothing);
+    expect(find.text('notes.pdf'), findsOneWidget);
+
+    await tester.tap(find.text('Clear history'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Clear'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Nothing here yet'), findsOneWidget);
+  });
+
+  testWidgets('declining the prompt keeps the history', (tester) async {
+    final container = await _pumpLaptopHome(tester);
+    container.read(recentTransfersProvider.notifier).record([
+      _received('holiday.png', 2500000, DateTime.now()),
+    ]);
+    await tester.tap(find.byTooltip('History'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.text('Clear history'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Keep'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('holiday.png'), findsOneWidget);
+  });
 }

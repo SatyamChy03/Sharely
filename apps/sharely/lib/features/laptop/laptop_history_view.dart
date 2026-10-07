@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -7,8 +9,9 @@ import 'package:sharely/features/laptop/widgets/activity_day_groups.dart';
 import 'package:sharely/features/transfer/state/recent_transfer.dart';
 import 'package:sharely/features/transfer/state/recent_transfers.dart';
 import 'package:sharely/features/transfer/transfer_formatting.dart';
+import 'package:sharely/features/transfer/widgets/clear_history_dialog.dart';
 
-/// Laptop "History": every transfer since Sharely was opened, by day.
+/// Laptop "History": every remembered transfer by day, and removing them.
 class LaptopHistoryView extends ConsumerWidget {
   const new({super.key});
 
@@ -28,23 +31,37 @@ class LaptopHistoryView extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 18,
             children: [
-              Text(
-                'History',
-                style: textTheme.headlineMedium?.copyWith(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.2,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'History',
+                    style: textTheme.headlineMedium?.copyWith(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                  if (transfers.isNotEmpty)
+                    TextButton(
+                      onPressed: () =>
+                          unawaited(_clearAfterConfirming(context, ref)),
+                      child: const Text('Clear history'),
+                    ),
+                ],
               ),
               if (transfers.isNotEmpty)
                 Text(
                   _summarise(transfers),
                   style: sharelyMonoStyle(size: 13, color: SharelyColors.slate),
                 ),
-              _HistoryCard(transfers: transfers),
+              _HistoryCard(
+                transfers: transfers,
+                onRemove: ref.read(recentTransfersProvider.notifier).remove,
+              ),
               Text(
-                'History covers this session and clears when Sharely closes. '
-                'Your files stay in Downloads.',
+                'History is kept on this laptop only. Removing an entry never '
+                'deletes the file.',
                 style: textTheme.bodySmall?.copyWith(
                   color: SharelyColors.slate,
                 ),
@@ -56,6 +73,14 @@ class LaptopHistoryView extends ConsumerWidget {
     );
   }
 
+  Future<void> _clearAfterConfirming(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    if (!await confirmClearHistory(context)) return;
+    ref.read(recentTransfersProvider.notifier).clear();
+  }
+
   static String _summarise(List<RecentTransfer> transfers) {
     final totalBytes = transfers.fold(0, (sum, item) => sum + item.sizeBytes);
     return '${formatFileCount(transfers.length)} · '
@@ -64,9 +89,10 @@ class LaptopHistoryView extends ConsumerWidget {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const new({required this.transfers});
+  const new({required this.transfers, required this.onRemove});
 
   final List<RecentTransfer> transfers;
+  final ValueChanged<RecentTransfer> onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +104,11 @@ class _HistoryCard extends StatelessWidget {
       ),
       child: transfers.isEmpty
           ? const _EmptyHistory()
-          : ActivityDayGroups(transfers: transfers, showsTime: true),
+          : ActivityDayGroups(
+              transfers: transfers,
+              showsTime: true,
+              onRemove: onRemove,
+            ),
     );
   }
 }

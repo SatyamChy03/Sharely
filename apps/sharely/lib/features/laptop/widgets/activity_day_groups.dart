@@ -7,10 +7,18 @@ import 'package:sharely/features/transfer/state/transfers_by_day.dart';
 
 /// Transfers under Today, Yesterday and Earlier headings.
 class ActivityDayGroups extends StatelessWidget {
-  const new({required this.transfers, this.showsTime = false, super.key});
+  const new({
+    required this.transfers,
+    this.showsTime = false,
+    this.onRemove,
+    super.key,
+  });
 
   final List<RecentTransfer> transfers;
   final bool showsTime;
+
+  /// Null hides the per-row remove button.
+  final ValueChanged<RecentTransfer>? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +35,13 @@ class ActivityDayGroups extends StatelessWidget {
             ).copyWith(letterSpacing: 1.5),
           ),
           for (final transfer in day.transfers)
-            ActivityRow(transfer: transfer, showsTime: showsTime),
+            ActivityRow(
+              transfer: transfer,
+              showsTime: showsTime,
+              onRemove: onRemove == null
+                  ? null
+                  : () => onRemove?.call(transfer),
+            ),
         ],
       ],
     );

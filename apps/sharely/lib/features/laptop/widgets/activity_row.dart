@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
 import 'package:sharely/features/transfer/state/recent_transfer.dart';
@@ -12,12 +13,20 @@ final _log = Logger('Activity');
 
 /// One activity line: a type tile, name, direction and size, then Show.
 class ActivityRow extends StatelessWidget {
-  const new({required this.transfer, this.showsTime = false, super.key});
+  const new({
+    required this.transfer,
+    this.showsTime = false,
+    this.onRemove,
+    super.key,
+  });
 
   final RecentTransfer transfer;
 
   /// History adds the clock time; the Home panel stays compact.
   final bool showsTime;
+
+  /// Shown as a small remove button; History passes it, Home does not.
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +69,16 @@ class ActivityRow extends StatelessWidget {
           TextButton(
             onPressed: () => unawaited(_showInFolder(savedFile.parent.path)),
             child: const Text('Show'),
+          ),
+        if (onRemove != null)
+          IconButton(
+            onPressed: onRemove,
+            tooltip: 'Remove from history',
+            icon: const Icon(
+              LucideIcons.x,
+              size: 16,
+              color: SharelyColors.slate,
+            ),
           ),
       ],
     );

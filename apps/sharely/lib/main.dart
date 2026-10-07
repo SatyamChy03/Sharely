@@ -5,12 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:sharely/app/sharely_app.dart';
+import 'package:sharely/app/storage/history_storage.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _configureLogging();
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: await loadHistoryOverrides());
   // Loaded before the first frame so a paired phone opens on Home.
   await container.read(pairedDevicesProvider.future);
   runApp(

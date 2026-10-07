@@ -7,9 +7,12 @@ import 'package:sharely/features/transfer/transfer_formatting.dart';
 
 /// One finished file: direction, name, when, and size.
 class RecentTransferRow extends StatelessWidget {
-  const new({required this.transfer, super.key});
+  const new({required this.transfer, this.onRemove, super.key});
 
   final RecentTransfer transfer;
+
+  /// Shown as a small remove button; History passes it, Home does not.
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +68,20 @@ class RecentTransferRow extends StatelessWidget {
             formatByteCount(transfer.sizeBytes),
             style: sharelyMonoStyle(size: 12, color: SharelyColors.slate),
           ),
+          if (onRemove != null)
+            IconButton(
+              onPressed: onRemove,
+              tooltip: 'Remove from history',
+              constraints: const BoxConstraints.tightFor(
+                width: SharelySizes.minTouchTarget,
+                height: SharelySizes.minTouchTarget,
+              ),
+              icon: const Icon(
+                LucideIcons.x,
+                size: 16,
+                color: SharelyColors.slate,
+              ),
+            ),
         ],
       ),
     );
