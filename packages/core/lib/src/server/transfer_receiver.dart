@@ -121,6 +121,11 @@ class TransferReceiver {
         isCancelled: () => transfer.isEnded,
         onBytesWritten: (byteCount) => _recordProgress(transfer, byteCount),
       );
+      // A cancel can land while the file is being closed; it must still win.
+      if (transfer.isEnded) {
+        await file.delete();
+        return Response(HttpStatus.conflict);
+      }
       transfer.savedFiles.add(file);
     } on TransferException catch (error) {
       _end(transferId, error.failure, notifySender: true);
