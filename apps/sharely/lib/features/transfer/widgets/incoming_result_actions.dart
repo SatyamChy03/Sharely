@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:sharely/features/transfer/widgets/incoming_offer_actions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final _log = Logger('IncomingResult');
@@ -17,14 +18,18 @@ class IncomingResultActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+      spacing: 10,
       children: [
         if (savedFiles.isNotEmpty)
-          TextButton(
-            onPressed: () => unawaited(_openSaveFolder()),
-            child: const Text('Show in folder'),
+          Expanded(
+            child: NotificationButton(
+              label: 'Show in folder',
+              onPressed: () => unawaited(_openSaveFolder()),
+            ),
           ),
-        TextButton(onPressed: onDismiss, child: const Text('Close')),
+        Expanded(
+          child: NotificationButton(label: 'Close', onPressed: onDismiss),
+        ),
       ],
     );
   }

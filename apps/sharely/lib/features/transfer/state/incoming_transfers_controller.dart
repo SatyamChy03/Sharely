@@ -17,6 +17,11 @@ final incomingTransfersProvider =
 
 /// Laptop side: incoming offers and their progress, newest last.
 class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
+  /// Long enough to read "Saved"; the file stays listed under Activity.
+  static const savedNoticeDuration = Duration(seconds: 6);
+
+  final _dismissTimers = <Timer>[];
+
   TransferReceiver get _receiver => ref.read(transferReceiverProvider);
 
   @override
@@ -25,7 +30,9 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
         .watch(transferReceiverProvider)
         .events
         .listen(_applyEvent);
-    ref.onDispose(subscription.cancel);
+    ref
+      ..onDispose(subscription.cancel)
+      ..onDispose(_cancelDismissTimers);
     return const [];
   }
 
@@ -93,6 +100,9 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
             savedFiles: savedFiles,
           ),
         );
+        _dismissTimers.add(
+          Timer(savedNoticeDuration, () => dismiss(transferId)),
+        );
       case IncomingTransferEnded(:final transferId, :final reason):
         _update(
           transferId,
@@ -102,6 +112,13 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
           ),
         );
     }
+  }
+
+  void _cancelDismissTimers() {
+    for (final timer in _dismissTimers) {
+      timer.cancel();
+    }
+    _dismissTimers.clear();
   }
 
   void _recordReceived(String transferId, List<File> savedFiles) {
