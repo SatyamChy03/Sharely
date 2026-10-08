@@ -7,8 +7,8 @@ import 'package:sharely_core/sharely_core.dart';
 // Android throttles apps that update a notification many times a second.
 const _updateInterval = Duration(seconds: 1);
 
-/// Mirrors one send into the system notification while it runs.
-class BackgroundSendNotice {
+/// Mirrors one download into the system notification while it runs.
+class BackgroundReceiveNotice {
   new(
     this._background, {
     required this.laptopName,
@@ -21,18 +21,22 @@ class BackgroundSendNotice {
   final int fileCount;
   final int totalBytes;
   final _sinceLastUpdate = Stopwatch();
+  int _lastPercent = 0;
 
-  String get _sendingTitle =>
-      'Sending ${formatFileCount(fileCount)} to $laptopName';
+  String get _receivingTitle =>
+      'Receiving ${formatFileCount(fileCount)} from $laptopName';
 
   Future<void> start({required void Function() onCancelRequested}) =>
       _background.start(
-        title: _sendingTitle,
+        title: _receivingTitle,
         text: formatByteCount(totalBytes),
         onCancelRequested: onCancelRequested,
       );
 
-  void showProgress({required int bytesSent, required double bytesPerSecond}) {
+  void showProgress({
+    required int bytesReceived,
+    required double bytesPerSecond,
+  }) {
     if (_sinceLastUpdate.isRunning &&
         _sinceLastUpdate.elapsed < _updateInterval) {
       return;
@@ -40,44 +44,44 @@ class BackgroundSendNotice {
     _sinceLastUpdate
       ..reset()
       ..start();
-    final percent = totalBytes == 0 ? 100 : bytesSent * 100 ~/ totalBytes;
+    final percent = totalBytes == 0 ? 100 : bytesReceived * 100 ~/ totalBytes;
+    _lastPercent = percent;
     unawaited(
       _background.update(
-        title: _sendingTitle,
+        title: _receivingTitle,
         text:
-            '$percent% · ${formatByteCount(bytesSent)} of '
+            '$percent% · ${formatByteCount(bytesReceived)} of '
             '${formatByteCount(totalBytes)} · ${formatSpeed(bytesPerSecond)}',
         percent: percent,
       ),
     );
   }
 
-  /// Says the send is waiting for the connection, not stuck or lost.
-  void showReconnecting({required int bytesSent}) {
+  /// Says the download is waiting for the connection, not stuck or lost.
+  void showReconnecting() {
     _sinceLastUpdate.reset();
-    final percent = totalBytes == 0 ? 100 : bytesSent * 100 ~/ totalBytes;
     unawaited(
       _background.update(
         title: 'Reconnecting to $laptopName…',
-        text: 'The send continues by itself when the Wi-Fi is back.',
-        percent: percent,
+        text: 'The download continues by itself when the Wi-Fi is back.',
+        percent: _lastPercent,
       ),
     );
   }
 
-  /// [failure] is null when every file arrived.
+  /// [failure] is null when every file was saved.
   Future<void> end(TransferFailure? failure) {
     if (failure == null) {
       return _background.finish(
-        title: 'Sent to $laptopName',
-        text: '${formatFileCount(fileCount)} · ${formatByteCount(totalBytes)}',
+        title: 'Saved ${formatFileCount(fileCount)} from $laptopName',
+        text: 'In Downloads/Sharely · ${formatByteCount(totalBytes)}',
       );
     }
-    // The user cancelled, so a notification about it would only be noise.
+    // A cancel is already known to whoever pressed it; don't add noise.
     if (failure == TransferFailure.cancelled) return _background.stop();
     return _background.finish(
-      title: "Send to $laptopName didn't finish",
-      text: describeSendFailure(failure),
+      title: "Files from $laptopName didn't finish",
+      text: describeReceiveFailure(failure, laptopName),
     );
   }
 }

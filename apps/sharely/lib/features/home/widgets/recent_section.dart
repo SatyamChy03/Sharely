@@ -33,7 +33,7 @@ class RecentSection extends ConsumerWidget {
         ),
         if (recent.isEmpty)
           Text(
-            'Nothing sent yet. Files you send show up here.',
+            'Nothing yet. Files you send or receive show up here.',
             style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
           ),
         for (final transfer in recent.take(_shownOnHome))

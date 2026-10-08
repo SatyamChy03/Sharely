@@ -6,6 +6,7 @@ import 'package:sharely/features/home/history_tab.dart';
 import 'package:sharely/features/home/home_tab.dart';
 import 'package:sharely/features/home/widgets/pill_nav.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
+import 'package:sharely/features/transfer/widgets/laptop_offers_overlay.dart';
 
 /// Phone home shell: Home, History and Devices under one floating nav.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -61,6 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: PillNav(current: _tab, onSelected: _showTab),
               ),
             ),
+            const Positioned.fill(child: LaptopOffersOverlay()),
           ],
         ),
       ),

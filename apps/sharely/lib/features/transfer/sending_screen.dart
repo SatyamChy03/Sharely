@@ -99,7 +99,7 @@ class _SendBody extends ConsumerWidget {
     SendInProgress(:final fraction, :final bytesPerSecond) => SendProgressRing(
       fraction: fraction,
       headline: '${(fraction * 100).floor()}%',
-      caption: bytesPerSecond > 0 ? formatSpeed(bytesPerSecond) : 'starting',
+      caption: _progressCaption(bytesPerSecond),
     ),
     SendSucceeded() => const SendProgressRing(
       fraction: 1,
@@ -150,7 +150,16 @@ class _SendBody extends ConsumerWidget {
     );
   }
 
+  String _progressCaption(double bytesPerSecond) {
+    final send = this.send;
+    if (send is SendInProgress && send.isReconnecting) return 'reconnecting';
+    return bytesPerSecond > 0 ? formatSpeed(bytesPerSecond) : 'starting';
+  }
+
   String? _note() => switch (send) {
+    SendInProgress(isReconnecting: true) =>
+      'Lost the connection to $laptopName. The send continues by itself '
+          'when the Wi-Fi is back.',
     SendAwaitingAcceptance() => 'Accept on $laptopName to start.',
     SendSucceeded() => 'Saved in Downloads/Sharely on $laptopName.',
     SendFailed(:final reason) => describeSendFailure(reason),

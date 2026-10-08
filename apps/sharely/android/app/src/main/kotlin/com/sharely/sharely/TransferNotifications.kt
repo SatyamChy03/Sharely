@@ -9,7 +9,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Build
 
-/** The ongoing "Sending…" notification and the one left when it's done. */
+/** The ongoing transfer notification and the one left when it's done. */
 object TransferNotifications {
     const val PROGRESS_ID = 1001
     const val FINISHED_ID = 1002

@@ -51,6 +51,18 @@ void main() {
     expect(await readAll(fd), bytes);
   });
 
+  test('a second read starts from the first byte again', () async {
+    final content = List.generate(300000, (index) => index % 239);
+    final file = File('${folder.path}/resume.bin')..writeAsBytesSync(content);
+    final fd = _openDescriptor(file);
+    addTearDown(() => closeFileDescriptor(fd));
+
+    // A send that broke off part-way, then one that reads the whole file.
+    await readFileDescriptor(fd).first;
+    expect(await readAll(fd), content);
+    expect(await readAll(fd), content);
+  });
+
   test('an empty file ends straight away', () async {
     final file = File('${folder.path}/empty')..writeAsBytesSync([]);
     final fd = _openDescriptor(file);

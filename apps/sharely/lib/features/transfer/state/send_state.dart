@@ -35,10 +35,14 @@ final class SendInProgress extends SendWithFiles {
     required super.files,
     required this.bytesSent,
     required this.bytesPerSecond,
+    this.isReconnecting = false,
   });
 
   final int bytesSent;
   final double bytesPerSecond;
+
+  /// The connection dropped; the send continues by itself when it is back.
+  final bool isReconnecting;
 
   double get fraction => totalBytes == 0 ? 1 : bytesSent / totalBytes;
 

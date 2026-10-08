@@ -7,10 +7,14 @@ import 'package:sharely/features/laptop/widgets/activity_panel.dart';
 import 'package:sharely/features/laptop/widgets/drop_zone_card.dart';
 import 'package:sharely/features/laptop/widgets/laptop_nav_rail.dart';
 import 'package:sharely/features/laptop/widgets/phone_chip.dart';
+import 'package:sharely/features/laptop/widgets/phone_send_card.dart';
 import 'package:sharely/features/laptop/widgets/quick_text_bar.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/connected_phones.dart';
+import 'package:sharely/features/transfer/state/phone_send_controller.dart';
+import 'package:sharely/features/transfer/state/quick_text_result.dart';
+import 'package:sharely/features/transfer/state/send_state.dart';
 import 'package:sharely/features/transfer/widgets/incoming_transfers_overlay.dart';
 
 /// Laptop shell once paired: Home, History and Devices beside one rail.
@@ -107,7 +111,66 @@ class _LaptopHomeScreenState extends ConsumerState<LaptopHomeScreen> {
   }
 }
 
-class _SendColumn extends StatelessWidget {
+class _SendColumn extends ConsumerWidget {
+  const new({required this.phoneName, required this.isConnected});
+
+  final String phoneName;
+  final bool isConnected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final send = ref.watch(phoneSendProvider);
+    final controller = ref.read(phoneSendProvider.notifier);
+    final canSend = isConnected && send is SendIdle;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 18,
+      children: [
+        _SendHeading(phoneName: phoneName, isConnected: isConnected),
+        DropZoneCard(
+          phoneName: phoneName,
+          onChooseFiles: canSend ? controller.pickAndSendFiles : null,
+          onChooseFolder: canSend ? controller.pickAndSendFolder : null,
+          onDropPaths: canSend ? controller.sendPaths : null,
+        ),
+        if (send is SendWithFiles)
+          PhoneSendCard(
+            send: send,
+            phoneName: phoneName,
+            onCancel: controller.cancel,
+            onDismiss: controller.dismiss,
+          ),
+        QuickTextBar(
+          onSend: isConnected ? (text) => _sendText(context, ref, text) : null,
+        ),
+        if (!isConnected)
+          Text(
+            'Open Sharely on $phoneName, on the same Wi-Fi, to send to it.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.slate),
+          ),
+      ],
+    );
+  }
+
+  bool _sendText(BuildContext context, WidgetRef ref, String text) {
+    final result = ref.read(phoneSendProvider.notifier).sendText(text);
+    final notice = switch (result) {
+      QuickTextResult.sent => 'Sent to $phoneName.',
+      QuickTextResult.empty => 'Type or paste something to send first.',
+      QuickTextResult.tooLong =>
+        'That is too long to send as text. Save it as a file and send that.',
+      QuickTextResult.notConnected =>
+        "$phoneName isn't connected. Open Sharely on it and try again.",
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(notice)));
+    return result == QuickTextResult.sent;
+  }
+}
+
+class _SendHeading extends StatelessWidget {
   const new({required this.phoneName, required this.isConnected});
 
   final String phoneName;
@@ -115,39 +178,21 @@ class _SendColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 18,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            Text(
-              'Send to phone',
-              style: textTheme.headlineMedium?.copyWith(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.2,
-              ),
-            ),
-            PhoneChip(phoneName: phoneName, isConnected: isConnected),
-          ],
-        ),
-        DropZoneCard(
-          phoneName: phoneName,
-          onChooseFiles: null,
-          onChooseFolder: null,
-        ),
-        const QuickTextBar(onSend: null),
         Text(
-          'Sending from this laptop to your phone arrives in the next update. '
-          'Your phone can already send files here.',
-          style: textTheme.bodySmall?.copyWith(color: SharelyColors.slate),
+          'Send to phone',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.2,
+          ),
         ),
+        PhoneChip(phoneName: phoneName, isConnected: isConnected),
       ],
     );
   }

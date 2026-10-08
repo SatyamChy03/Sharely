@@ -55,7 +55,15 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
 
   @override
   LaptopConnectionState build() {
-    final devices = ref.watch(pairedDevicesProvider).value ?? const [];
+    // Only what the link depends on, so changing a setting such as "always
+    // accept" doesn't drop the connection in the middle of a transfer.
+    ref.watch(
+      pairedDevicesProvider.select((devices) {
+        final laptop = devices.value?.lastOrNull;
+        return (laptop?.deviceId, laptop?.authToken, laptop?.endpoint);
+      }),
+    );
+    final devices = ref.read(pairedDevicesProvider).value ?? const [];
     final laptop = devices.lastOrNull;
     ref.onDispose(() {
       _retryTimer?.cancel();
