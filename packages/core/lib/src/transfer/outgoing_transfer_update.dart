@@ -16,6 +16,12 @@ final class OutgoingTransferSending extends OutgoingTransferUpdate {
   final int totalBytes;
 }
 
+/// The connection dropped mid-transfer; it resumes by itself if the other
+/// device comes back in time. The next sending update means it has.
+final class OutgoingTransferReconnecting extends OutgoingTransferUpdate {
+  const new();
+}
+
 final class OutgoingTransferCompleted extends OutgoingTransferUpdate {
   const new();
 }

@@ -109,7 +109,8 @@ void main() {
     test('are refused before the laptop accepts', () async {
       await _offer(harness, _offerFor('x'.codeUnits), accept: false);
 
-      expect(await _put(harness, _bodyFor('x'.codeUnits)), 409);
+      expect(await _put(harness, _bodyFor('x'.codeUnits)), 404);
+      expect(harness.savedFiles(), isEmpty);
     });
 
     test('with altered bytes are discarded as corrupted', () async {

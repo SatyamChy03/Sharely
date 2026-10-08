@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:sharely_core/src/server/pairing_request_handler.dart';
 import 'package:sharely_core/src/server/request_authenticator.dart';
 import 'package:sharely_core/src/server/transfer_receiver.dart';
+import 'package:sharely_core/src/server/transfer_sender.dart';
 import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -16,6 +17,7 @@ const helloPath = '/v1/hello';
 /// Routes that only paired devices may use.
 typedef TransferRoutes = ({
   TransferReceiver receiver,
+  TransferSender sender,
   PairedDeviceLookup findPairedDevice,
 });
 
@@ -83,6 +85,14 @@ void _addTransferRoutes(Router router, TransferRoutes transfers) {
     ..put(
       '/v1/transfers/<transferId>/<fileIndex>',
       pairedOnly.addHandler(transfers.receiver.handleUpload),
+    )
+    ..get(
+      '/v1/transfers/<transferId>/<fileIndex>/offset',
+      pairedOnly.addHandler(transfers.receiver.handleOffset),
+    )
+    ..get(
+      '/v1/transfers/<transferId>/<fileIndex>',
+      pairedOnly.addHandler(transfers.sender.handleDownload),
     );
 }
 

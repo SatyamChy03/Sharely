@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:sharely_core/src/protocol/protocol_message.dart';
 import 'package:sharely_core/src/security/safe_file_creator.dart';
+import 'package:sharely_core/src/transfer/guarded_stream.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/upload_checksum.dart';
 import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
@@ -10,85 +11,136 @@ import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
 // Network chunks are small; one disk write per chunk wastes most of the time.
 const int _writeBatchBytes = 4 << 20;
 
-/// Streams one upload to a new file in [saveDirectory], chunk by chunk.
+/// One incoming file on disk, filled by one or more requests.
 ///
-/// The body is the file's bytes followed by its checksum. The file is kept
-/// only if its size and checksum match; on any failure the partial file is
-/// deleted and the error is rethrown.
-Future<File> writeIncomingFile({
-  required Stream<List<int>> body,
-  required Directory saveDirectory,
-  required OfferedFile expected,
-  required bool Function() isCancelled,
-  required void Function(int byteCount) onBytesWritten,
-}) async {
-  final file = await createUniqueIncomingFile(saveDirectory, expected.name);
-  final output = await file.open(mode: FileMode.writeOnly);
-  final sink = _VerifyingFileSink(output, expected.sizeBytes, onBytesWritten);
-  try {
-    // Awaiting each batch pauses the upload, so a slow disk can't fill memory.
-    await for (final chunk in body) {
+/// Each request body is the file's remaining bytes followed by the checksum
+/// of the whole file. A body that breaks off leaves the bytes received so
+/// far in place, so the next request continues from [bytesWritten].
+class PartialIncomingFile {
+  new _(this.file, this.expected);
+
+  /// Creates the empty file in [saveDirectory] under a safe, unused name.
+  static Future<PartialIncomingFile> create(
+    Directory saveDirectory,
+    OfferedFile expected,
+  ) async {
+    final file = await createUniqueIncomingFile(saveDirectory, expected.name);
+    return PartialIncomingFile._(file, expected);
+  }
+
+  final File file;
+  final OfferedFile expected;
+  final _hasher = Xxh64Accumulator();
+  int _bytesWritten = 0;
+  bool _isDiscarded = false;
+
+  /// Bytes safely on disk, which is where a resumed request must start.
+  int get bytesWritten => _bytesWritten;
+
+  /// Writes one request's [body]; returns once the file is complete and its
+  /// checksum matches.
+  ///
+  /// Throws [TransferInterrupted] when the body broke off (the file is
+  /// kept), or a [TransferException] or [FileSystemException] when the file
+  /// can't be completed (the file is deleted).
+  Future<void> append(
+    Stream<List<int>> body, {
+    required bool Function() isCancelled,
+    required void Function(int byteCount) onBytesWritten,
+  }) async {
+    final output = await file.open(mode: FileMode.writeOnlyAppend);
+    final batch = BytesBuilder(copy: false);
+    final checksum = BytesBuilder();
+
+    Future<void> flush() async {
+      if (batch.isEmpty) return;
+      final bytes = batch.takeBytes();
+      await output.writeFrom(bytes);
+      _bytesWritten += bytes.length;
+      onBytesWritten(bytes.length);
+    }
+
+    try {
+      // Awaiting each batch pauses the sender, so a slow disk can't fill
+      // memory.
+      await for (final chunk in body) {
+        if (isCancelled()) {
+          throw const TransferException(TransferFailure.cancelled);
+        }
+        _split(chunk, batch, checksum);
+        if (batch.length >= _writeBatchBytes) await flush();
+      }
+      await flush();
+      // A cancel can land after the last chunk; it must still win.
       if (isCancelled()) {
         throw const TransferException(TransferFailure.cancelled);
       }
-      await sink.add(chunk);
+      _verify(checksum);
+      await output.close();
+    } on TransferException {
+      await output.close();
+      await discard();
+      rethrow;
+    } on FileSystemException {
+      await output.close();
+      await discard();
+      rethrow;
+    } on Object {
+      // The network gave out. Keep what arrived, so it isn't sent twice.
+      await _keepPartial(output, flush);
+      throw const TransferInterrupted();
     }
-    await sink.flush();
-    // A cancel can land after the last chunk; it must still win.
-    if (isCancelled()) {
-      throw const TransferException(TransferFailure.cancelled);
-    }
-    if (!sink.isCompleteAndIntact) {
-      throw const TransferException(TransferFailure.corrupted);
-    }
-    await output.close();
-    return file;
-  } on Object {
-    await output.close();
-    await file.delete();
-    rethrow;
   }
-}
 
-/// Splits the body into file bytes and checksum, hashing as it writes.
-class _VerifyingFileSink {
-  new(this._output, this._fileBytes, this._onBytesWritten);
+  /// Deletes the file; safe to call more than once.
+  Future<void> discard() async {
+    if (_isDiscarded) return;
+    _isDiscarded = true;
+    try {
+      await file.delete();
+    } on PathNotFoundException {
+      // Already gone, which is all that was wanted.
+    }
+  }
 
-  final RandomAccessFile _output;
-  final int _fileBytes;
-  final void Function(int byteCount) _onBytesWritten;
-  final _hasher = Xxh64Accumulator();
-  final _batch = BytesBuilder(copy: false);
-  final _checksum = BytesBuilder();
-  int _fileBytesSeen = 0;
-
-  bool get isCompleteAndIntact =>
-      _fileBytesSeen == _fileBytes &&
-      _checksum.length == uploadChecksumBytes &&
-      decodeUploadChecksum(_checksum.toBytes()) == _hasher.finish();
-
-  Future<void> add(List<int> chunk) async {
+  /// Sorts [chunk] into file bytes (hashed and queued) and checksum bytes.
+  void _split(List<int> chunk, BytesBuilder batch, BytesBuilder checksum) {
     final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
-    final fileSlice = (_fileBytes - _fileBytesSeen).clamp(0, bytes.length);
+    final queued = _bytesWritten + batch.length;
+    final fileSlice = (expected.sizeBytes - queued).clamp(0, bytes.length);
     if (fileSlice > 0) {
       final fileBytes = Uint8List.sublistView(bytes, 0, fileSlice);
-      _fileBytesSeen += fileSlice;
       _hasher.add(fileBytes);
-      _batch.add(fileBytes);
+      batch.add(fileBytes);
     }
-    if (fileSlice < bytes.length) {
-      _checksum.add(Uint8List.sublistView(bytes, fileSlice));
-      if (_checksum.length > uploadChecksumBytes) {
-        throw const TransferException(TransferFailure.corrupted);
-      }
+    if (fileSlice == bytes.length) return;
+    checksum.add(Uint8List.sublistView(bytes, fileSlice));
+    if (checksum.length > uploadChecksumBytes) {
+      throw const TransferException(TransferFailure.corrupted);
     }
-    if (_batch.length >= _writeBatchBytes) await flush();
   }
 
-  Future<void> flush() async {
-    if (_batch.isEmpty) return;
-    final bytes = _batch.takeBytes();
-    await _output.writeFrom(bytes);
-    _onBytesWritten(bytes.length);
+  void _verify(BytesBuilder checksum) {
+    final isIntact =
+        _bytesWritten == expected.sizeBytes &&
+        checksum.length == uploadChecksumBytes &&
+        decodeUploadChecksum(checksum.toBytes()) == _hasher.finish();
+    if (!isIntact) throw const TransferException(TransferFailure.corrupted);
+  }
+
+  // Bytes already hashed must reach the disk, or the checksum and the file
+  // would disagree after a resume.
+  Future<void> _keepPartial(
+    RandomAccessFile output,
+    Future<void> Function() flush,
+  ) async {
+    try {
+      await flush();
+      await output.close();
+    } on FileSystemException {
+      await output.close().catchError((Object _) => output);
+      await discard();
+      rethrow;
+    }
   }
 }
