@@ -29,6 +29,13 @@ final class LaptopConnected extends LaptopConnectionState {
   final ControlConnection connection;
 }
 
+/// The user chose Disconnect; nothing connects until they choose Connect.
+final class LaptopDisconnected extends LaptopConnectionState {
+  const new(this.laptop);
+
+  final PairedDevice laptop;
+}
+
 final class LaptopUnreachable extends LaptopConnectionState {
   const new(this.laptop);
 
