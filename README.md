@@ -19,8 +19,8 @@ Send files, photos, text, links and clipboard content between your phone and lap
 - The **laptop app runs a small local server**. The phone connects to it, and there is no central backend.
 - **Pairing:** the laptop shows a QR code containing its address, a one-time token, and its certificate fingerprint. After pairing, each device remembers the other.
 - **Control channel:** a WebSocket carrying small JSON messages (`hello`, `offer`, `accept`, `reject`, `progress`, `cancel`, `text`, `link`, `clipboard`).
-- **File data:** streamed over HTTP(S) in chunks (`GET/PUT /transfer/{transferId}/{fileIndex}`). `Range` headers let interrupted transfers resume, and a checksum is verified on completion.
-- **Security:** only paired devices can talk to each other. Every request carries a pairing token, and traffic is encrypted with TLS using a self-signed certificate pinned at pairing (from v1).
+- **File data:** streamed over HTTPS in chunks (`GET/PUT /transfer/{transferId}/{fileIndex}`). `Range` headers let interrupted transfers resume, and a checksum is verified on completion.
+- **Security:** only paired devices can talk to each other. Every request carries a pairing token, and all traffic is encrypted with TLS using the laptop's self-signed certificate, which the phone pins at pairing. See [SECURITY.md](SECURITY.md).
 - **Discovery:** mDNS finds paired devices automatically (from v1). The QR code is always available as a fallback.
 
 ## Tech stack
