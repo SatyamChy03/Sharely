@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transfer_channel_name">Transfers</string>
+    <string name="transfer_channel_description">Progress of files moving between your phone and laptop</string>
+    <string name="transfer_cancel">Cancel</string>
+</resources>

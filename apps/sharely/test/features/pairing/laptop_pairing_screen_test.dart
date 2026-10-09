@@ -77,6 +77,6 @@ void main() {
     );
 
     expect(find.text("Paired with Satyam's Phone"), findsOneWidget);
-    expect(find.text('Pair another phone'), findsOneWidget);
+    expect(find.text('Open Sharely'), findsOneWidget);
   });
 }

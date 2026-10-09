@@ -63,6 +63,9 @@ final _corruptedStores = <String, String>{
   'a host without a port': _storedList([
     {..._validRecord(), 'host': '192.168.1.24'},
   ]),
+  'an always-accept flag that is not a boolean': _storedList([
+    {..._validRecord(), 'alwaysAccept': 'yes'},
+  ]),
   'too many devices': _storedList(
     List.filled(maxStoredPairedDevices + 1, _validRecord()),
   ),
@@ -123,6 +126,14 @@ void main() {
       final loaded = (await store.loadPairedDevices()).single;
 
       expect(loaded.endpoint, laptop.endpoint);
+    });
+
+    test('keep the always-accept choice', () async {
+      await store.savePairedDevices([_phone().copyWith(alwaysAccept: true)]);
+
+      final loaded = (await store.loadPairedDevices()).single;
+
+      expect(loaded.alwaysAccept, isTrue);
     });
 
     test('can be forgotten', () async {

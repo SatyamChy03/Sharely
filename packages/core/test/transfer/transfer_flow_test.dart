@@ -66,8 +66,6 @@ void main() {
     ]);
     expect(await saved.first.readAsBytes(), photoBytes);
     expect(await updates, [
-      isA<OutgoingTransferPreparing>(),
-      isA<OutgoingTransferPreparing>(),
       isA<OutgoingTransferAwaitingAcceptance>(),
       ...List.filled(
         (await updates).whereType<OutgoingTransferSending>().length,
@@ -160,9 +158,13 @@ void main() {
     },
   );
 
-  test('an unreadable file fails clearly before anything is offered', () async {
+  test('an unreadable file fails clearly and cancels the transfer', () async {
+    harness.acceptEveryOffer();
+    final ended = harness.receiver.events
+        .whereType<IncomingTransferEnded>()
+        .first;
     final file = await harness.writeFile('gone.txt', 'x'.codeUnits);
-    await File(file.path).delete();
+    await File('${harness.workDirectory.path}/gone.txt').delete();
 
     final transfer = await _startSending(harness, [file]);
 
@@ -170,5 +172,40 @@ void main() {
       transfer.done,
       _failsWith(TransferFailure.unreadableFile),
     );
+    expect((await ended).reason, TransferFailure.cancelled);
+    expect(harness.savedFiles(), isEmpty);
+  });
+
+  test('a file that shrinks while sending is not saved', () async {
+    harness.acceptEveryOffer();
+    final file = await harness.writeFile('log.txt', 'growing log'.codeUnits);
+    final shrunk = OutgoingFile(
+      name: file.name,
+      sizeBytes: file.sizeBytes,
+      mimeType: file.mimeType,
+      openRead: () => Stream.value('grow'.codeUnits),
+    );
+
+    final transfer = await _startSending(harness, [shrunk]);
+
+    await expectLater(
+      transfer.done,
+      _failsWith(TransferFailure.unreadableFile),
+    );
+    expect(harness.savedFiles(), isEmpty);
+  });
+
+  test('a file bigger than a write batch arrives intact', () async {
+    harness.acceptEveryOffer();
+    final bytes = List.generate(9 << 20, (i) => i * 7 & 255);
+    final file = await harness.writeFile('video.mp4', bytes);
+    final completed = harness.receiver.events
+        .whereType<IncomingTransferCompleted>()
+        .first;
+
+    await (await _startSending(harness, [file])).done;
+
+    final saved = (await completed).savedFiles.single;
+    expect(await saved.readAsBytes(), bytes);
   });
 }

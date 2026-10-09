@@ -63,6 +63,12 @@ class ScanStatusCard extends StatelessWidget {
     PhonePairingIssue.mismatch =>
       "Your laptop didn't answer as expected. Update Sharely on both "
           'devices and try again.',
+    PhonePairingIssue.noLaptopFound =>
+      "Couldn't find your laptop. Open Sharely on it and join the same "
+          'Wi-Fi as this phone.',
+    PhonePairingIssue.wrongCode =>
+      "That code didn't match. Check the code on your laptop; it changes "
+          'every 5 minutes.',
   };
 }
 

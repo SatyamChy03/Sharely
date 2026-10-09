@@ -4,11 +4,14 @@ import 'package:sharely/app/device_platform.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely_core/sharely_core.dart';
 
-/// White card naming a paired device, with a "Paired" chip.
+/// White card naming a paired device, with a status chip.
 class PairedDeviceCard extends StatelessWidget {
-  const new({required this.device, super.key});
+  const new({required this.device, this.isConnected, super.key});
 
   final PairedDevice device;
+
+  /// Null where live status is unknown; the chip then only says "Paired".
+  final bool? isConnected;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +56,7 @@ class PairedDeviceCard extends StatelessWidget {
                 ],
               ),
             ),
-            const _PairedChip(),
+            _StatusChip(isConnected: isConnected),
           ],
         ),
       ),
@@ -61,22 +64,29 @@ class PairedDeviceCard extends StatelessWidget {
   }
 }
 
-class _PairedChip extends StatelessWidget {
-  const new();
+class _StatusChip extends StatelessWidget {
+  const new({required this.isConnected});
+
+  final bool? isConnected;
 
   @override
   Widget build(BuildContext context) {
+    final (label, background, foreground) = switch (isConnected) {
+      null => ('Paired', SharelyColors.ink, SharelyColors.surface),
+      true => ('Connected', SharelyColors.accent, SharelyColors.onAccent),
+      false => ('Not connected', SharelyColors.mistLight, SharelyColors.slate),
+    };
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: SharelyColors.ink,
-        borderRadius: BorderRadius.all(SharelyRadii.chip),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: const BorderRadius.all(SharelyRadii.chip),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Text(
-          'Paired',
+          label,
           style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: SharelyColors.surface),
+              ?.copyWith(color: foreground),
         ),
       ),
     );

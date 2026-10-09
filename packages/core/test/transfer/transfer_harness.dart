@@ -24,10 +24,11 @@ final otherPhone = PairedDevice(
 
 /// A real laptop server on loopback, with a temp save folder and files.
 class TransferHarness {
-  new _(this.server, this.receiver, this.workDirectory);
+  new _(this.server, this.receiver, this.sender, this.workDirectory);
 
   final SharelyServer server;
   final TransferReceiver receiver;
+  final TransferSender sender;
   final Directory workDirectory;
 
   Directory get saveDirectory => Directory('${workDirectory.path}/received');
@@ -35,10 +36,21 @@ class TransferHarness {
   DeviceEndpoint get endpoint =>
       DeviceEndpoint(host: server.address, port: server.port);
 
-  static Future<TransferHarness> start() async {
+  static Future<TransferHarness> start({
+    Duration decisionTimeout = const Duration(seconds: 5),
+    Duration resumeWindow = const Duration(seconds: 20),
+    Duration dataIdleTimeout = defaultDataIdleTimeout,
+  }) async {
     final workDirectory = await Directory.systemTemp.createTemp('sharely_');
     final receiver = TransferReceiver(
       saveDirectory: () async => Directory('${workDirectory.path}/received'),
+      resumeWindow: resumeWindow,
+      dataIdleTimeout: dataIdleTimeout,
+    );
+    final sender = TransferSender(
+      hub: receiver.hub,
+      decisionTimeout: decisionTimeout,
+      resumeWindow: resumeWindow,
     );
     final pairedDevices = {
       for (final device in [phone, otherPhone]) device.deviceId: device,
@@ -55,9 +67,13 @@ class TransferHarness {
         ),
         onPaired: (_) {},
       ),
-      transfers: (receiver: receiver, findPairedDevice: pairedDevices.get),
+      transfers: (
+        receiver: receiver,
+        sender: sender,
+        findPairedDevice: pairedDevices.get,
+      ),
     );
-    final harness = TransferHarness._(server, receiver, workDirectory);
+    final harness = TransferHarness._(server, receiver, sender, workDirectory);
     addTearDown(harness.stop);
     return harness;
   }
@@ -97,6 +113,7 @@ class TransferHarness {
   }
 
   Future<void> stop() async {
+    await sender.close();
     await receiver.close();
     await server.stop();
     await workDirectory.delete(recursive: true);

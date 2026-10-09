@@ -5,9 +5,10 @@ import 'package:sharely/design/typography.dart';
 
 /// Left column of the laptop get-started screen: promise and three steps.
 class LaptopPairingIntro extends StatelessWidget {
-  const new({required this.isPaired, super.key});
+  const new({required this.isPaired, this.hasReceivedFile = false, super.key});
 
   final bool isPaired;
+  final bool hasReceivedFile;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,12 @@ class LaptopPairingIntro extends StatelessWidget {
           isCurrent: !isPaired,
           isDone: isPaired,
         ),
-        _Step(number: '03', label: 'Send a test photo', isCurrent: isPaired),
+        _Step(
+          number: '03',
+          label: 'Send a test photo',
+          isCurrent: isPaired && !hasReceivedFile,
+          isDone: hasReceivedFile,
+        ),
       ],
     );
   }

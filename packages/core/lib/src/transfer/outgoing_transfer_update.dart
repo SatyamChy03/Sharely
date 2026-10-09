@@ -5,14 +5,6 @@ sealed class OutgoingTransferUpdate {
   const new();
 }
 
-/// Checksumming files before the offer goes out.
-final class OutgoingTransferPreparing extends OutgoingTransferUpdate {
-  const new({required this.filesReady, required this.fileCount});
-
-  final int filesReady;
-  final int fileCount;
-}
-
 final class OutgoingTransferAwaitingAcceptance extends OutgoingTransferUpdate {
   const new();
 }
@@ -22,6 +14,12 @@ final class OutgoingTransferSending extends OutgoingTransferUpdate {
 
   final int bytesSent;
   final int totalBytes;
+}
+
+/// The connection dropped mid-transfer; it resumes by itself if the other
+/// device comes back in time. The next sending update means it has.
+final class OutgoingTransferReconnecting extends OutgoingTransferUpdate {
+  const new();
 }
 
 final class OutgoingTransferCompleted extends OutgoingTransferUpdate {

@@ -19,6 +19,12 @@ enum TransferFailure {
 
   /// A file to send was moved, deleted or unreadable.
   unreadableFile,
+
+  /// The offer lists more files than one message may carry.
+  tooManyFiles,
+
+  /// There was nothing to send, such as an empty folder.
+  noFiles,
 }
 
 class TransferException implements Exception {

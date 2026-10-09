@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SharelyColors.accent in lib/design/tokens.dart. -->
+    <color name="sharely_accent">#3F72AF</color>
+</resources>

@@ -3,28 +3,32 @@ import 'dart:io';
 
 import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
-import 'package:sharely_core/src/security/file_safety_exception.dart';
 import 'package:sharely_core/src/server/control_hub.dart';
 import 'package:sharely_core/src/server/request_authenticator.dart';
-import 'package:sharely_core/src/transfer/incoming_file_writer.dart';
+import 'package:sharely_core/src/server/upload_intake.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer_event.dart';
+import 'package:sharely_core/src/transfer/resume_settings.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 
 const _progressReportInterval = Duration(milliseconds: 100);
 
 /// Laptop side of transfers: offers in, accepted files verified onto disk.
+///
+/// An upload that breaks off keeps its bytes; the phone continues it from
+/// [handleOffset] once it is back, within [resumeWindow].
 class TransferReceiver {
   new({
     required this.saveDirectory,
     ControlHub? hub,
     this.maxPendingOffersPerDevice = 3,
+    this.resumeWindow = defaultResumeWindow,
+    this.dataIdleTimeout = defaultDataIdleTimeout,
   }) : hub = hub ?? ControlHub() {
     _subscriptions = [
       this.hub.messages.listen(_handleMessage),
-      this.hub.disconnects.listen(_endTransfersFrom),
+      this.hub.disconnects.listen(_handleDisconnect),
     ];
   }
 
@@ -35,7 +39,25 @@ class TransferReceiver {
   /// Stops one paired device from flooding the screen with prompts.
   final int maxPendingOffersPerDevice;
 
+  /// How long an accepted transfer may receive nothing before it is ended.
+  final Duration resumeWindow;
+
+  /// How long one upload may stay silent before it counts as broken.
+  final Duration dataIdleTimeout;
+
   final _transfers = <String, IncomingTransfer>{};
+  late final _uploads = UploadIntake(
+    findTransfer: (transferId) => _transfers[transferId],
+    saveDirectory: saveDirectory,
+    dataIdleTimeout: dataIdleTimeout,
+    onBytesWritten: _recordProgress,
+    onInterrupted: (transfer) =>
+        _emit(IncomingTransferInterrupted(transfer.offer.transferId)),
+    onIdle: _armStallTimer,
+    onAllFilesSaved: _complete,
+    onFailed: (transfer, reason) =>
+        _end(transfer.offer.transferId, reason, notifySender: true),
+  );
   final _events = StreamController<IncomingTransferEvent>.broadcast();
   late final List<StreamSubscription<Object>> _subscriptions;
 
@@ -48,6 +70,7 @@ class TransferReceiver {
       return;
     }
     transfer.stage = IncomingTransferStage.receiving;
+    _armStallTimer(transfer);
     hub.send(
       transfer.sender.deviceId,
       TransferDecisionMessage.accept(transferId),
@@ -68,29 +91,13 @@ class TransferReceiver {
       _end(transferId, TransferFailure.cancelled, notifySender: true);
 
   /// `PUT /v1/transfers/<transferId>/<fileIndex>`, behind [requirePairedDevice].
-  Future<Response> handleUpload(Request request) async {
-    final transferId = request.params['transferId'] ?? '';
-    final transfer = _transfers[transferId];
-    final fileIndex = int.tryParse(request.params['fileIndex'] ?? '') ?? -1;
-    // Unknown, foreign and out-of-range uploads all look the same: not found.
-    if (transfer == null ||
-        !transfer.isFrom(authenticatedDevice(request)) ||
-        fileIndex < 0 ||
-        fileIndex >= transfer.offer.files.length) {
-      return Response.notFound(null);
-    }
-    if (transfer.stage != IncomingTransferStage.receiving ||
-        !transfer.startedFileIndexes.add(fileIndex)) {
-      return Response(HttpStatus.conflict);
-    }
-    final expected = transfer.offer.files[fileIndex];
-    final declaredLength = request.contentLength;
-    if (declaredLength != null && declaredLength != expected.sizeBytes) {
-      _end(transferId, TransferFailure.corrupted, notifySender: true);
-      return Response.badRequest();
-    }
-    return await _receiveFile(transfer, expected, request.read());
-  }
+  Future<Response> handleUpload(Request request) =>
+      _uploads.handleUpload(request);
+
+  /// `GET /v1/transfers/<transferId>/<fileIndex>/offset`, behind
+  /// [requirePairedDevice].
+  Future<Response> handleOffset(Request request) =>
+      _uploads.handleOffset(request);
 
   Future<void> close() async {
     for (final subscription in _subscriptions) {
@@ -103,39 +110,6 @@ class TransferReceiver {
     await _events.close();
   }
 
-  Future<Response> _receiveFile(
-    IncomingTransfer transfer,
-    OfferedFile expected,
-    Stream<List<int>> body,
-  ) async {
-    final transferId = transfer.offer.transferId;
-    try {
-      final directory = await saveDirectory();
-      await directory.create(recursive: true);
-      final file = await writeIncomingFile(
-        body: body,
-        saveDirectory: directory,
-        expected: expected,
-        isCancelled: () => transfer.isEnded,
-        onBytesWritten: (byteCount) => _recordProgress(transfer, byteCount),
-      );
-      transfer.savedFiles.add(file);
-    } on TransferException catch (error) {
-      _end(transferId, error.failure, notifySender: true);
-      return error.failure == TransferFailure.corrupted
-          ? Response(HttpStatus.unprocessableEntity)
-          : Response(HttpStatus.conflict);
-    } on IOException {
-      _end(transferId, TransferFailure.unreachable, notifySender: true);
-      return Response(HttpStatus.conflict);
-    } on FileSafetyException {
-      _end(transferId, TransferFailure.refused, notifySender: true);
-      return Response(HttpStatus.conflict);
-    }
-    if (transfer.hasAllFiles) _complete(transfer);
-    return Response(HttpStatus.noContent);
-  }
-
   void _handleMessage(DeviceMessage deviceMessage) {
     final (:sender, :message) = deviceMessage;
     switch (message) {
@@ -145,7 +119,7 @@ class TransferReceiver {
           when _transfers[transferId]?.isFrom(sender) ?? false:
         _end(transferId, TransferFailure.cancelled, notifySender: false);
       default:
-        // Text, links and clipboard arrive in a later slice; ignore for now.
+        // Text and links are shown by the app, which listens to the hub.
         break;
     }
   }
@@ -193,6 +167,7 @@ class TransferReceiver {
     final transferId = transfer.offer.transferId;
     _transfers.remove(transferId);
     transfer.isEnded = true;
+    transfer.stallTimer?.cancel();
     _emit(
       IncomingTransferCompleted(
         transferId,
@@ -209,6 +184,8 @@ class TransferReceiver {
     final transfer = _transfers.remove(transferId);
     if (transfer == null) return;
     transfer.isEnded = true;
+    transfer.stallTimer?.cancel();
+    transfer.releaseUnfinishedFiles();
     if (notifySender) {
       hub.send(
         transfer.sender.deviceId,
@@ -223,13 +200,32 @@ class TransferReceiver {
     if (!_events.isClosed) _events.add(event);
   }
 
-  void _endTransfersFrom(String deviceId) {
-    final fromDevice = [
-      for (final MapEntry(:key, :value) in _transfers.entries)
-        if (value.sender.deviceId == deviceId) key,
-    ];
-    for (final transferId in fromDevice) {
-      _end(transferId, TransferFailure.unreachable, notifySender: false);
+  void _armStallTimer(IncomingTransfer transfer) {
+    transfer.stallTimer?.cancel();
+    if (transfer.isEnded) return;
+    transfer.stallTimer = Timer(
+      resumeWindow,
+      () => _end(
+        transfer.offer.transferId,
+        TransferFailure.unreachable,
+        notifySender: true,
+      ),
+    );
+  }
+
+  /// A lost phone withdraws its unanswered offers; accepted transfers wait
+  /// for it to come back and resume.
+  void _handleDisconnect(String deviceId) {
+    final fromDevice = _transfers.values
+        .where((transfer) => transfer.sender.deviceId == deviceId)
+        .toList();
+    for (final transfer in fromDevice) {
+      final transferId = transfer.offer.transferId;
+      if (transfer.stage == IncomingTransferStage.awaitingDecision) {
+        _end(transferId, TransferFailure.unreachable, notifySender: false);
+      } else if (transfer.activeUploads.isEmpty) {
+        _emit(IncomingTransferInterrupted(transferId));
+      }
     }
   }
 }

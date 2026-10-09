@@ -12,6 +12,7 @@ final class PairedDevice {
     required this.authToken,
     required this.pairedAt,
     this.endpoint,
+    this.alwaysAccept = false,
   });
 
   factory fromHello(
@@ -39,7 +40,14 @@ final class PairedDevice {
   /// Known only for laptops, whose servers the phone connects to.
   final DeviceEndpoint? endpoint;
 
-  PairedDevice copyWith({String? deviceName, DeviceEndpoint? endpoint}) {
+  /// The receiver skips the accept prompt for this device's offers.
+  final bool alwaysAccept;
+
+  PairedDevice copyWith({
+    String? deviceName,
+    DeviceEndpoint? endpoint,
+    bool? alwaysAccept,
+  }) {
     return PairedDevice(
       deviceId: deviceId,
       deviceName: deviceName ?? this.deviceName,
@@ -47,6 +55,7 @@ final class PairedDevice {
       authToken: authToken,
       pairedAt: pairedAt,
       endpoint: endpoint ?? this.endpoint,
+      alwaysAccept: alwaysAccept ?? this.alwaysAccept,
     );
   }
 

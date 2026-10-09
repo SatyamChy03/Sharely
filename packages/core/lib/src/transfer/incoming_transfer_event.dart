@@ -4,7 +4,7 @@ import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 
-/// What the laptop UI hears about incoming transfers.
+/// What the receiving UI hears about incoming transfers.
 sealed class IncomingTransferEvent {
   const new(this.transferId);
 
@@ -28,6 +28,12 @@ final class IncomingTransferProgressed extends IncomingTransferEvent {
 
   final int bytesReceived;
   final int totalBytes;
+}
+
+/// The connection dropped mid-transfer; it resumes by itself if the other
+/// device comes back in time. The next progress event means it has.
+final class IncomingTransferInterrupted extends IncomingTransferEvent {
+  const new(super.transferId);
 }
 
 /// Every file arrived and matched its checksum.

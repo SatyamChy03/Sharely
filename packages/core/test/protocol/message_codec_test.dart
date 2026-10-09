@@ -37,12 +37,7 @@ void _roundTripTests() {
       const OfferMessage(
         transferId: _transferId,
         files: [
-          OfferedFile(
-            name: 'a.jpg',
-            sizeBytes: 1024,
-            mimeType: 'image/jpeg',
-            sha256: _sha256,
-          ),
+          OfferedFile(name: 'a.jpg', sizeBytes: 1024, mimeType: 'image/jpeg'),
         ],
       ),
       const TransferDecisionMessage.accept(_transferId),
@@ -59,18 +54,8 @@ void _roundTripTests() {
     const offer = OfferMessage(
       transferId: _transferId,
       files: [
-        OfferedFile(
-          name: 'a',
-          sizeBytes: 10,
-          mimeType: 'text/plain',
-          sha256: _sha256,
-        ),
-        OfferedFile(
-          name: 'b',
-          sizeBytes: 32,
-          mimeType: 'text/plain',
-          sha256: _sha256,
-        ),
+        OfferedFile(name: 'a', sizeBytes: 10, mimeType: 'text/plain'),
+        OfferedFile(name: 'b', sizeBytes: 32, mimeType: 'text/plain'),
       ],
     );
     expect(offer.totalBytes, 42);
@@ -125,14 +110,10 @@ void _linkTests() {
   });
 }
 
-const _sha256 =
-    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-
 const Map<String, Object?> _validFile = {
   'name': 'a.jpg',
   'size': 1,
   'mime': 'image/jpeg',
-  'sha256': _sha256,
 };
 
 // Attack and malformed inputs, each of which must be rejected.
@@ -180,25 +161,18 @@ final _invalidFieldCases = <String, Map<String, Object?>>{
       {..._validFile, 'mime': 'image jpeg'},
     ],
   },
-  'a missing checksum': {
+  'a missing size': {
     'type': 'offer',
     'transferId': _transferId,
     'files': [
-      {..._validFile}..remove('sha256'),
+      {..._validFile}..remove('size'),
     ],
   },
-  'an uppercase checksum': {
+  'a file checksum, which now travels after the bytes': {
     'type': 'offer',
     'transferId': _transferId,
     'files': [
-      {..._validFile, 'sha256': 'AB' * 32},
-    ],
-  },
-  'a short checksum': {
-    'type': 'offer',
-    'transferId': _transferId,
-    'files': [
-      {..._validFile, 'sha256': 'ab' * 31},
+      {..._validFile, 'sha256': 'ab' * 32},
     ],
   },
   'too many files': {

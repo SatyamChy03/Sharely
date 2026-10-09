@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:sharely_core/src/server/pairing_request_handler.dart';
 import 'package:sharely_core/src/server/request_authenticator.dart';
 import 'package:sharely_core/src/server/transfer_receiver.dart';
+import 'package:sharely_core/src/server/transfer_sender.dart';
 import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -10,9 +11,13 @@ import 'package:shelf_router/shelf_router.dart';
 
 const defaultSharelyPort = 53891;
 
+/// Unauthenticated: the laptop's public identity, for finding it by code.
+const helloPath = '/v1/hello';
+
 /// Routes that only paired devices may use.
 typedef TransferRoutes = ({
   TransferReceiver receiver,
+  TransferSender sender,
   PairedDeviceLookup findPairedDevice,
 });
 
@@ -34,7 +39,9 @@ class SharelyServer {
     TransferRoutes? transfers,
     int preferredPort = defaultSharelyPort,
   }) async {
-    final router = Router()..post('/v1/pair', pairingHandler.handle);
+    final router = Router()
+      ..get(helloPath, pairingHandler.handleHello)
+      ..post('/v1/pair', pairingHandler.handle);
     if (transfers != null) _addTransferRoutes(router, transfers);
     final handler = const Pipeline()
         .addMiddleware(_noStoreHeaders)
@@ -78,6 +85,14 @@ void _addTransferRoutes(Router router, TransferRoutes transfers) {
     ..put(
       '/v1/transfers/<transferId>/<fileIndex>',
       pairedOnly.addHandler(transfers.receiver.handleUpload),
+    )
+    ..get(
+      '/v1/transfers/<transferId>/<fileIndex>/offset',
+      pairedOnly.addHandler(transfers.receiver.handleOffset),
+    )
+    ..get(
+      '/v1/transfers/<transferId>/<fileIndex>',
+      pairedOnly.addHandler(transfers.sender.handleDownload),
     );
 }
 

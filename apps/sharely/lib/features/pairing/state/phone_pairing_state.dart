@@ -1,7 +1,14 @@
 import 'package:sharely_core/sharely_core.dart';
 
 /// Why pairing failed, phrased for one plain-language fix each.
-enum PhonePairingIssue { notSharelyCode, unreachable, expiredCode, mismatch }
+enum PhonePairingIssue {
+  notSharelyCode,
+  unreachable,
+  expiredCode,
+  mismatch,
+  noLaptopFound,
+  wrongCode,
+}
 
 sealed class PhonePairingState {
   const new();
@@ -9,6 +16,19 @@ sealed class PhonePairingState {
 
 final class PhoneReadyToScan extends PhonePairingState {
   const new();
+}
+
+/// Sweeping this Wi-Fi for a laptop to try a typed code on.
+final class PhoneSearchingForLaptop extends PhonePairingState {
+  const new();
+}
+
+/// Several laptops answered; the user picks theirs by name.
+final class PhoneChoosingLaptop extends PhonePairingState {
+  const new(this.laptops, this.code);
+
+  final List<FoundLaptop> laptops;
+  final String code;
 }
 
 final class PhoneConnecting extends PhonePairingState {
