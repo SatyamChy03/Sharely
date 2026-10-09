@@ -82,7 +82,9 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
             totalBytes: offer.totalBytes,
           ),
         ];
-        if (sender.alwaysAccept) accept(offer.transferId);
+        if (sender.alwaysAccept && canAcceptWithoutAsking(offer)) {
+          accept(offer.transferId);
+        }
       case IncomingTransferProgressed(:final transferId, :final bytesReceived):
         _update(
           transferId,

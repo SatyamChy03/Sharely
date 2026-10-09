@@ -13,6 +13,7 @@ import 'package:sharely_core/src/transfer/checksummed_file_stream.dart';
 import 'package:sharely_core/src/transfer/offered_transfer.dart';
 import 'package:sharely_core/src/transfer/outgoing_file.dart';
 import 'package:sharely_core/src/transfer/outgoing_transfer_update.dart';
+import 'package:sharely_core/src/transfer/parallel_settings.dart';
 import 'package:sharely_core/src/transfer/resume_settings.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/upload_checksum.dart';
@@ -119,6 +120,11 @@ class TransferSender {
       return Response.badRequest();
     }
     if (!transfer.isAccepted) return Response(HttpStatus.conflict);
+    final isNewServe = !transfer.currentServes.containsKey(fileIndex);
+    if (isNewServe &&
+        transfer.currentServes.length >= maxParallelFilesPerTransfer) {
+      return Response(HttpStatus.serviceUnavailable);
+    }
     final serve = Object();
     transfer.currentServes[fileIndex] = serve;
     transfer.stallTimer?.cancel();
@@ -178,7 +184,7 @@ class TransferSender {
     int offset,
     Object serve,
   ) async* {
-    var bytesSent = transfer.bytesBefore(fileIndex) + offset;
+    transfer.bytesSentByFile[fileIndex] = offset;
     var isServed = false;
     try {
       final chunks = readFileWithChecksum(
@@ -186,8 +192,13 @@ class TransferSender {
         offset: offset,
         shouldStop: () => !transfer.isServing(fileIndex, serve),
         onBytesYielded: (byteCount) {
-          bytesSent += byteCount;
-          _recordProgress(transferId, transfer, bytesSent);
+          // A download this one replaced must not count its bytes twice.
+          if (!transfer.isServing(fileIndex, serve)) return;
+          transfer.bytesSentByFile.update(
+            fileIndex,
+            (sent) => sent + byteCount,
+          );
+          _recordProgress(transferId, transfer);
         },
       );
       // Not `yield*`: that would hand a read error to the socket instead of
@@ -252,12 +263,8 @@ class TransferSender {
     );
   }
 
-  void _recordProgress(
-    String transferId,
-    OfferedTransfer transfer,
-    int bytesSent,
-  ) {
-    transfer.bytesSent = bytesSent;
+  void _recordProgress(String transferId, OfferedTransfer transfer) {
+    final bytesSent = transfer.bytesSent;
     final isLastByte = bytesSent == transfer.totalBytes;
     if (!isLastByte &&
         transfer.sinceLastProgressReport.elapsed < _progressReportInterval) {

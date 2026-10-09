@@ -1,27 +1,31 @@
 import 'dart:io';
 
 import 'package:meta/meta.dart';
+import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/pairing/lan_address.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_ids.dart';
 import 'package:sharely_core/src/protocol/protocol_limits.dart';
+import 'package:sharely_core/src/security/cert_fingerprint.dart';
 
 const _scheme = 'sharely';
 const _action = 'pair';
-const _formatVersion = '1';
+// 2: carries the laptop's certificate fingerprint.
+const _formatVersion = '2';
 const _maxInviteChars = 512;
-const _queryKeys = {'v', 'h', 'p', 't', 'id', 'n'};
+const _queryKeys = {'v', 'h', 'p', 't', 'f', 'id', 'n'};
 final _controlCharacters = RegExp(r'[\x00-\x1F\x7F]');
 
 /// What the laptop's QR code carries: where to connect and a one-time token.
 ///
-/// Encoded as `sharely://pair?v=1&h=<ip>&p=<port>&t=<token>&id=<id>&n=<name>`.
+/// Encoded as `sharely://pair?v=2&h=<ip>&p=<port>&t=<token>&f=<fingerprint>&id=<id>&n=<name>`.
 @immutable
 final class PairingInvite {
   const new({
     required this.host,
     required this.port,
     required this.token,
+    required this.certFingerprint,
     required this.deviceId,
     required this.deviceName,
   });
@@ -46,6 +50,7 @@ final class PairingInvite {
       host: _parsePrivateHost(query['h']!),
       port: _parsePort(query['p']!),
       token: _parseId(query['t']!),
+      certFingerprint: _parseFingerprint(query['f']!),
       deviceId: _parseId(query['id']!),
       deviceName: _parseDeviceName(query['n']!),
     );
@@ -54,8 +59,16 @@ final class PairingInvite {
   final InternetAddress host;
   final int port;
   final String token;
+
+  /// The certificate the laptop must present, so nobody on the Wi-Fi can
+  /// answer in its place or read the pairing.
+  final String certFingerprint;
   final String deviceId;
   final String deviceName;
+
+  /// Where the pairing request goes, and the certificate to expect there.
+  DeviceEndpoint get endpoint =>
+      DeviceEndpoint(host: host, port: port, certFingerprint: certFingerprint);
 
   String toUriString() => Uri(
     scheme: _scheme,
@@ -65,6 +78,7 @@ final class PairingInvite {
       'h': host.address,
       'p': '$port',
       't': token,
+      'f': certFingerprint,
       'id': deviceId,
       'n': deviceName,
     },
@@ -93,6 +107,13 @@ int _parsePort(String raw) {
 String _parseId(String raw) {
   if (!isValidProtocolId(raw)) {
     throw const ProtocolException('Invite contains an invalid id');
+  }
+  return raw;
+}
+
+String _parseFingerprint(String raw) {
+  if (!isValidCertFingerprint(raw)) {
+    throw const ProtocolException('Invite certificate is invalid');
   }
   return raw;
 }

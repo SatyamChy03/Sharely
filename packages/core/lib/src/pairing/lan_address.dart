@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:sharely_core/src/protocol/protocol_exception.dart';
+
 /// True for private IPv4 ranges (10/8, 172.16/12, 192.168/16).
 ///
 /// Pairing only ever targets these, so a forged QR code cannot point the
@@ -11,6 +13,11 @@ bool isPrivateLanAddress(InternetAddress address) {
       (first == 172 && second >= 16 && second <= 31) ||
       (first == 192 && second == 168);
 }
+
+/// True for a caller on this network or this machine. The server answers
+/// nobody else, even if a router forwards a port to it by mistake.
+bool isLocalNetworkPeer(InternetAddress address) =>
+    address.isLoopback || isPrivateLanAddress(address);
 
 // Docker, VM and VPN adapters also hold private addresses, but no phone
 // can reach the laptop through them.
@@ -53,3 +60,20 @@ List<InternetAddress> rankLanAddresses(
 
 /// Sharely never serves on, or connects to, a privileged or invalid port.
 bool isValidServicePort(int port) => port >= 1024 && port <= 65535;
+
+/// An untrusted host that must be a private LAN address.
+InternetAddress parsePrivateLanHost(String host) {
+  final address = InternetAddress.tryParse(host);
+  if (address == null || !isPrivateLanAddress(address)) {
+    throw const ProtocolException('Host is not a private LAN address');
+  }
+  return address;
+}
+
+/// An untrusted port that must be one Sharely may use.
+int parseServicePort(int port) {
+  if (!isValidServicePort(port)) {
+    throw const ProtocolException('Port is out of range');
+  }
+  return port;
+}

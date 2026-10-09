@@ -28,4 +28,14 @@ void main() {
     expect(isVirtualInterfaceName('vEthernet (WSL)'), isTrue);
     expect(isVirtualInterfaceName('Wi-Fi'), isFalse);
   });
+
+  test('the server answers only this network and this machine', () {
+    bool isLocal(String ip) => isLocalNetworkPeer(InternetAddress(ip));
+    expect(isLocal('192.168.1.20'), isTrue);
+    expect(isLocal('10.0.0.5'), isTrue);
+    expect(isLocal('127.0.0.1'), isTrue);
+    expect(isLocal('8.8.8.8'), isFalse);
+    expect(isLocal('172.32.0.1'), isFalse);
+    expect(isLocal('2001:db8::1'), isFalse);
+  });
 }

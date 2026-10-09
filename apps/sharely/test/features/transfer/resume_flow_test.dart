@@ -21,6 +21,8 @@ import 'package:sharely/features/transfer/state/transfer_receiver_provider.dart'
 import 'package:sharely/features/transfer/state/transfer_sender_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 const _authToken = 'auth_0123456789abcdef0123456789abcdef';
 const _phoneHello = HelloMessage(
   deviceId: 'phone_0123456789abc',
@@ -109,6 +111,7 @@ void main() {
     final server = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => null,
         localHello: _laptopHello,
@@ -144,7 +147,11 @@ void main() {
             _laptopHello,
             authToken: _authToken,
             pairedAt: DateTime.utc(2026, 10, 5),
-            endpoint: DeviceEndpoint(host: server.address, port: server.port),
+            endpoint: DeviceEndpoint(
+              host: server.address,
+              port: server.port,
+              certFingerprint: testIdentity.fingerprint,
+            ),
           ),
         );
     phone.listen(laptopOffersProvider, (_, _) {});

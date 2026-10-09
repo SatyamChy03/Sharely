@@ -17,6 +17,8 @@ import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
 import 'package:sharely/features/transfer/state/incoming_transfers_controller.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 PairedDevice _phone(String deviceId, String name) => PairedDevice(
   deviceId: deviceId,
   deviceName: name,
@@ -41,6 +43,7 @@ class _FakeLaptopPairing extends LaptopPairingController {
           host: InternetAddress('192.168.1.24'),
           port: 53891,
           token: 'tok_0123456789abcdef',
+          certFingerprint: testFingerprint,
           deviceId: 'laptop_0123456789ab',
           deviceName: 'Laptop',
         ),

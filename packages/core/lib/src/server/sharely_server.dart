@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:sharely_core/src/pairing/lan_address.dart';
+import 'package:sharely_core/src/security/tls_identity.dart';
 import 'package:sharely_core/src/server/pairing_request_handler.dart';
 import 'package:sharely_core/src/server/request_authenticator.dart';
 import 'package:sharely_core/src/server/transfer_receiver.dart';
@@ -21,7 +23,7 @@ typedef TransferRoutes = ({
   PairedDeviceLookup findPairedDevice,
 });
 
-/// The laptop's embedded HTTP server, bound to one LAN address only.
+/// The laptop's embedded HTTPS server, bound to one LAN address only.
 class SharelyServer {
   new _(this._server);
 
@@ -36,6 +38,7 @@ class SharelyServer {
   static Future<SharelyServer> start({
     required InternetAddress address,
     required PairingRequestHandler pairingHandler,
+    required TlsIdentity identity,
     TransferRoutes? transfers,
     int preferredPort = defaultSharelyPort,
   }) async {
@@ -44,13 +47,14 @@ class SharelyServer {
       ..post('/v1/pair', pairingHandler.handle);
     if (transfers != null) _addTransferRoutes(router, transfers);
     final handler = const Pipeline()
+        .addMiddleware(_localNetworkOnly)
         .addMiddleware(_noStoreHeaders)
         .addHandler(router.call);
     HttpServer server;
     try {
-      server = await _serve(handler, address, preferredPort);
+      server = await _serve(handler, address, preferredPort, identity);
     } on SocketException {
-      server = await _serve(handler, address, 0);
+      server = await _serve(handler, address, 0, identity);
     }
     return SharelyServer._(server);
   }
@@ -61,11 +65,13 @@ class SharelyServer {
     Handler handler,
     InternetAddress address,
     int port,
+    TlsIdentity identity,
   ) async {
     final server = await shelf_io.serve(
       handler,
       address,
       port,
+      securityContext: identity.createServerContext(),
       poweredByHeader: null,
     );
     server.idleTimeout = const Duration(seconds: 30);
@@ -94,6 +100,17 @@ void _addTransferRoutes(Router router, TransferRoutes transfers) {
       '/v1/transfers/<transferId>/<fileIndex>',
       pairedOnly.addHandler(transfers.sender.handleDownload),
     );
+}
+
+Handler _localNetworkOnly(Handler inner) {
+  return (request) {
+    final connection = request.context['shelf.io.connection_info'];
+    if (connection is HttpConnectionInfo &&
+        !isLocalNetworkPeer(connection.remoteAddress)) {
+      return Response.forbidden(null);
+    }
+    return inner(request);
+  };
 }
 
 Handler _noStoreHeaders(Handler inner) {

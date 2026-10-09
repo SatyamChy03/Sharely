@@ -5,13 +5,15 @@ import 'package:test/test.dart';
 
 const _token = 'tok_0123456789abcdef';
 const _laptopId = 'laptop_0123456789ab';
+const _fingerprint = 'GC7sBY-wnhn-hzeInIlX3XANDNAagCm_dWCmPH5UdVQ';
 
 String _invite({
   String host = '192.168.1.24',
   String port = '53891',
+  String fingerprint = _fingerprint,
   String extra = '',
 }) {
-  return 'sharely://pair?v=1&h=$host&p=$port&t=$_token&id=$_laptopId'
+  return 'sharely://pair?v=2&h=$host&p=$port&t=$_token&f=$fingerprint&id=$_laptopId'
       "&n=Satyam's%20Laptop$extra";
 }
 
@@ -21,6 +23,7 @@ void main() {
       host: InternetAddress('10.0.0.7'),
       port: 53891,
       token: _token,
+      certFingerprint: _fingerprint,
       deviceId: _laptopId,
       deviceName: "Satyam's Laptop",
     );
@@ -28,6 +31,7 @@ void main() {
     expect(parsed.host.address, '10.0.0.7');
     expect(parsed.port, 53891);
     expect(parsed.token, _token);
+    expect(parsed.certFingerprint, _fingerprint);
     expect(parsed.deviceName, "Satyam's Laptop");
   });
 
@@ -39,6 +43,13 @@ void main() {
       'a privileged port': _invite(port: '80'),
       'a non-numeric port': _invite(port: 'http'),
       'an extra parameter': _invite(extra: '&admin=1'),
+      'a fingerprint of the wrong length': _invite(fingerprint: 'abc'),
+      'a fingerprint with other characters': _invite(
+        fingerprint: '${'A' * 42}!',
+      ),
+      'the old format without a certificate':
+          'sharely://pair?v=1&h=192.168.1.24&p=53891&t=$_token'
+          '&id=$_laptopId&n=Laptop',
       'a web URL': 'https://example.com/pair',
       'plain text': 'hello',
       'an oversized code': _invite(extra: '&x=${'a' * 600}'),

@@ -8,6 +8,8 @@ import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 class _FixedLaptopPairing extends LaptopPairingController {
   new(this._state);
 
@@ -48,6 +50,7 @@ void main() {
           host: InternetAddress('192.168.1.24'),
           port: 53891,
           token: 'tok_0123456789abcdef',
+          certFingerprint: testFingerprint,
           deviceId: 'laptop_0123456789ab',
           deviceName: 'Laptop',
         ),

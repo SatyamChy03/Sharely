@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:sharely_core/sharely_core.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 const _laptopHello = HelloMessage(
   deviceId: 'laptop_0123456789ab',
   deviceName: "Satyam's Laptop",
@@ -25,6 +27,7 @@ class _TestLaptop {
     server = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => session,
         localHello: _laptopHello,
@@ -34,10 +37,15 @@ class _TestLaptop {
   }
 
   // Built directly because parse() rightly refuses loopback addresses.
-  PairingInvite invite({String? token, String? deviceId}) => PairingInvite(
+  PairingInvite invite({
+    String? token,
+    String? deviceId,
+    String? certFingerprint,
+  }) => PairingInvite(
     host: server.address,
     port: server.port,
     token: token ?? session.token,
+    certFingerprint: certFingerprint ?? testIdentity.fingerprint,
     deviceId: deviceId ?? _laptopHello.deviceId,
     deviceName: _laptopHello.deviceName,
   );
@@ -106,14 +114,10 @@ void _refusalTests(_TestLaptop Function() laptopUnderTest) {
 
   test('an oversized request body is refused', () async {
     final laptop = laptopUnderTest();
-    final client = HttpClient();
+    final client = laptop.invite().endpoint.createHttpClient();
     addTearDown(client.close);
     final request =
-        await client.post(
-            laptop.server.address.address,
-            laptop.server.port,
-            '/v1/pair',
-          )
+        await client.postUrl(laptop.invite().endpoint.httpsUri('/v1/pair'))
           ..write(jsonEncode({'secret': 'x' * 8000}));
     final response = await request.close();
     expect(response.statusCode, HttpStatus.badRequest);
