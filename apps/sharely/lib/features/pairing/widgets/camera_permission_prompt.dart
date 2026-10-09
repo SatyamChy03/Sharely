@@ -47,16 +47,19 @@ class CameraPermissionPrompt extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: textTheme.titleMedium?.copyWith(color: SharelyColors.surface),
+          style: textTheme.titleMedium?.copyWith(color: SharelyColors.text),
         ),
         Text(
           message,
           textAlign: TextAlign.center,
-          style: textTheme.bodyMedium?.copyWith(color: SharelyColors.onInkSoft),
+          style: textTheme.bodyMedium?.copyWith(
+            color: SharelyColors.textSecondary,
+          ),
         ),
         const SizedBox(height: SharelySpacing.sm),
         SharelyButton(
           label: actionLabel,
+          height: SharelySizes.buttonMedium,
           onPressed: access == CameraAccess.blocked
               ? onOpenSettings
               : onRequestAccess,
@@ -75,13 +78,13 @@ class _CameraBadge extends StatelessWidget {
       width: 64,
       height: 64,
       decoration: const BoxDecoration(
-        color: SharelyColors.inkRaised,
+        color: SharelyColors.elevated,
         shape: BoxShape.circle,
       ),
       child: const Icon(
         LucideIcons.camera,
         size: 28,
-        color: SharelyColors.accentOnInk,
+        color: SharelyColors.primary,
       ),
     );
   }

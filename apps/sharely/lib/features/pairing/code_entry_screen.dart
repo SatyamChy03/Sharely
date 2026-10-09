@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/app/routes.dart';
@@ -11,10 +12,11 @@ import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
 import 'package:sharely/features/pairing/widgets/laptop_choice_list.dart';
 import 'package:sharely/features/pairing/widgets/pairing_code_field.dart';
-import 'package:sharely/features/pairing/widgets/scan_status_card.dart';
-import 'package:sharely/features/pairing/widgets/step_progress.dart';
+import 'package:sharely/features/pairing/widgets/pairing_issue_text.dart';
+import 'package:sharely/features/pairing/widgets/pairing_progress_view.dart';
+import 'package:sharely/features/pairing/widgets/pairing_step_header.dart';
 
-/// Get started step 2, without a camera: type the code the laptop shows.
+/// Pairing step 1 without a camera (M03): type the code the laptop shows.
 class CodeEntryScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -38,117 +40,126 @@ class _CodeEntryScreenState extends ConsumerState<CodeEntryScreen> {
     ref.listen(phonePairingProvider, (_, next) {
       if (next is PhonePaired) context.go(AppRoutes.connected);
     });
-    final isWorking =
-        pairing is PhoneSearchingForLaptop || pairing is PhoneConnecting;
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 22,
-            children: [
-              const _Header(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: SharelySpacing.sm,
-                children: [
-                  Text(
-                    'Type the code from your laptop',
-                    style: textTheme.headlineLarge,
-                  ),
-                  Text(
-                    "It's under the QR code in Sharely on your laptop and "
-                    'changes every 5 minutes.',
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: SharelyColors.slate,
-                    ),
-                  ),
-                ],
-              ),
-              PairingCodeField(
-                isEnabled: !isWorking,
-                onChanged: (code) => setState(() => _code = code),
-              ),
-              Expanded(child: _buildStatus(pairing, controller)),
-              SharelyButton(
-                label: isWorking ? 'Pairing…' : 'Pair',
-                variant: SharelyButtonVariant.ink,
-                onPressed: _isComplete && !isWorking ? _pair : null,
-              ),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+          child: switch (pairing) {
+            PhoneSearchingForLaptop() => PairingProgressView(
+              onCancel: controller.scanAgain,
+            ),
+            PhoneConnecting(:final laptopName) => PairingProgressView(
+              laptopName: laptopName,
+              onCancel: controller.scanAgain,
+            ),
+            _ => _buildEntry(pairing, controller),
+          },
         ),
       ),
     );
   }
 
-  Widget _buildStatus(
+  Widget _buildEntry(
     PhonePairingState pairing,
     PhonePairingController controller,
   ) {
-    return SingleChildScrollView(
-      child: switch (pairing) {
-        PhoneChoosingLaptop(:final laptops, :final code) => LaptopChoiceList(
-          laptops: laptops,
-          onChosen: (laptop) =>
-              unawaited(controller.pairWithFoundLaptop(laptop, code)),
-        ),
-        PhoneSearchingForLaptop() => const _SearchingNote(),
-        PhoneConnecting() || PhonePairingFailed() => ScanStatusCard(
-          state: pairing,
-          onScanAgain: controller.scanAgain,
-        ),
-        _ => const SizedBox.shrink(),
-      },
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const new();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final textTheme = Theme.of(context).textTheme;
+    final issue = pairing is PhonePairingFailed ? pairing.issue : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        IconButton.filledTonal(
-          tooltip: 'Back',
-          onPressed: () => context.pop(),
-          style: IconButton.styleFrom(
-            backgroundColor: SharelyColors.surface,
-            foregroundColor: SharelyColors.ink,
+        PairingStepHeader(currentStep: 1, onBack: () => context.pop()),
+        const Gap(22),
+        Text('Enter pairing code', style: textTheme.headlineLarge),
+        const Gap(SharelySpacing.sm),
+        Text(
+          "You'll find it on your laptop, under the QR code.",
+          style: textTheme.bodyLarge?.copyWith(
+            height: 1.5,
+            color: SharelyColors.textSecondary,
           ),
-          icon: const Icon(LucideIcons.chevronLeft),
         ),
-        const StepProgress(currentStep: 2),
+        const Gap(22),
+        PairingCodeField(
+          hasError: issue != null,
+          onChanged: (code) => setState(() => _code = code),
+        ),
+        const Gap(SharelySpacing.md),
+        if (issue != null) _IssueNote(issue) else const _ExpiryNote(),
+        const Gap(22),
+        SharelyButton(label: 'Connect', onPressed: _isComplete ? _pair : null),
+        const Gap(SharelySpacing.lg),
+        if (pairing case PhoneChoosingLaptop(:final laptops, :final code))
+          Expanded(
+            child: SingleChildScrollView(
+              child: LaptopChoiceList(
+                laptops: laptops,
+                onChosen: (laptop) =>
+                    unawaited(controller.pairWithFoundLaptop(laptop, code)),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _SearchingNote extends StatelessWidget {
+class _ExpiryNote extends StatelessWidget {
   const new();
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      spacing: SharelySpacing.md,
+      spacing: SharelySpacing.sm,
       children: [
-        const SizedBox.square(
-          dimension: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5),
+        const Icon(
+          LucideIcons.clock,
+          size: 14,
+          color: SharelyColors.textSecondary,
         ),
         Expanded(
           child: Text(
-            'Looking for your laptop on this Wi-Fi…',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: SharelyColors.slate),
+            'The code changes every 5 minutes.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _IssueNote extends StatelessWidget {
+  const new(this.issue);
+
+  final PhonePairingIssue issue;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = describePairingIssue(issue);
+    return Semantics(
+      liveRegion: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: SharelySpacing.sm,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              LucideIcons.circleAlert,
+              size: 14,
+              color: SharelyColors.dangerText,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${text.title}. ${text.fix}',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: SharelyColors.dangerText),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -6,8 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/icon_tile.dart';
+import 'package:sharely/design/widgets/section_label.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
+import 'package:sharely/design/widgets/surface_card.dart';
 import 'package:sharely/features/home/widgets/laptop_device_tile.dart';
+import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
@@ -15,8 +19,8 @@ import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely/features/transfer/state/transfer_in_flight.dart';
 import 'package:sharely_core/sharely_core.dart';
 
-/// The phone's paired laptops: choose which one to use, disconnect from it,
-/// forget it, or pair another.
+/// The Devices tab (M13): choose which laptop to use, disconnect from it,
+/// remove it, or pair another.
 class DevicesTabView extends ConsumerWidget {
   const new({super.key});
 
@@ -26,40 +30,56 @@ class DevicesTabView extends ConsumerWidget {
     final connection = ref.watch(laptopConnectionProvider);
     final isBusy = ref.watch(isTransferInFlightProvider);
     final textTheme = Theme.of(context).textTheme;
-    final hint = _hint(devices.length, isBusy: isBusy);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 24, 18, 104),
+      padding: const EdgeInsets.all(SharelySpacing.page),
       children: [
-        Text('Devices', style: textTheme.headlineMedium),
-        if (hint != null)
-          Padding(
-            padding: const EdgeInsets.only(top: SharelySpacing.sm),
-            child: Text(
-              hint,
-              style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
+        SizedBox(
+          height: SharelySizes.minTouchTarget,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'Devices',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.headlineMedium,
+                ),
+              ),
+              SharelyButton(
+                label: 'Add device',
+                leadingIcon: LucideIcons.plus,
+                height: SharelySizes.buttonMedium,
+                isExpanded: false,
+                onPressed: isBusy
+                    ? null
+                    : () => _pairAnother(context, ref, devices),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SharelySpacing.lg),
+        const _ThisPhoneCard(),
+        const SizedBox(height: SharelySpacing.lg),
+        if (devices.isNotEmpty) ...[
+          const SectionLabel('Paired laptops'),
+          const SizedBox(height: SharelySpacing.sm),
+          SurfaceCard(
+            radius: SharelyRadii.zone,
+            padding: const EdgeInsets.all(SharelySpacing.xs),
+            child: Column(
+              children: [
+                // The laptop in use is the last paired or chosen; it leads.
+                for (final laptop in devices.reversed)
+                  _buildTile(context, ref, laptop, connection, isBusy),
+              ],
             ),
           ),
-        const SizedBox(height: SharelySpacing.lg),
-        // The laptop in use is the last one paired or chosen; show it first.
-        for (final laptop in devices.reversed)
-          Padding(
-            padding: const EdgeInsets.only(bottom: SharelySpacing.xl),
-            child: _buildTile(context, ref, laptop, connection, isBusy),
-          ),
-        SharelyButton(
-          label: devices.isEmpty ? 'Pair your laptop' : 'Pair another laptop',
-          variant: SharelyButtonVariant.ink,
-          leadingIcon: LucideIcons.plus,
-          onPressed: isBusy ? null : () => _pairAnother(context, ref, devices),
-        ),
+          const SizedBox(height: SharelySpacing.lg),
+        ],
+        _Note(isBusy: isBusy),
       ],
     );
-  }
-
-  String? _hint(int laptopCount, {required bool isBusy}) {
-    if (isBusy) return 'Finish or cancel the transfer to change laptops.';
-    if (laptopCount > 1) return 'Files go to the laptop you are connected to.';
-    return null;
   }
 
   Widget _buildTile(
@@ -79,9 +99,9 @@ class DevicesTabView extends ConsumerWidget {
       onDisconnect: isBusy
           ? null
           : ref.read(laptopConnectionProvider.notifier).disconnect,
-      onForget: isBusy
+      onRemove: isBusy
           ? null
-          : () => unawaited(_confirmForget(context, ref, laptop)),
+          : () => unawaited(_confirmRemove(context, ref, laptop)),
     );
   }
 
@@ -103,7 +123,7 @@ class DevicesTabView extends ConsumerWidget {
     unawaited(context.push(AppRoutes.scan));
   }
 
-  Future<void> _confirmForget(
+  Future<void> _confirmRemove(
     BuildContext context,
     WidgetRef ref,
     PairedDevice laptop,
@@ -111,7 +131,7 @@ class DevicesTabView extends ConsumerWidget {
     final isConfirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Forget ${laptop.deviceName}?'),
+        title: Text('Remove ${laptop.deviceName}?'),
         content: const Text(
           "You'll need to scan its code again before sending anything to it.",
         ),
@@ -122,7 +142,7 @@ class DevicesTabView extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Forget'),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -132,5 +152,82 @@ class DevicesTabView extends ConsumerWidget {
     await devices.forget(laptop.deviceId);
     final remaining = ref.read(pairedDevicesProvider).value ?? const [];
     if (remaining.isEmpty && context.mounted) context.go(AppRoutes.welcome);
+  }
+}
+
+class _ThisPhoneCard extends ConsumerWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final textTheme = Theme.of(context).textTheme;
+    final name = ref.watch(localHelloProvider).value?.deviceName ?? '';
+    return SurfaceCard(
+      radius: SharelyRadii.zone,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        spacing: 14,
+        children: [
+          const IconTile(
+            icon: LucideIcons.smartphone,
+            color: SharelyColors.text,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Text(
+                  'This phone',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: SharelyColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelLarge,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Note extends StatelessWidget {
+  const new({required this.isBusy});
+
+  final bool isBusy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 10,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(
+            LucideIcons.shieldCheck,
+            size: 15,
+            color: SharelyColors.textSecondary,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            isBusy
+                ? 'Finish or cancel the transfer to change laptops.'
+                : 'Only laptops you have paired can send you files. Files '
+                      'go to the laptop you are connected to.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
+          ),
+        ),
+      ],
+    );
   }
 }

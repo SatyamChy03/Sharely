@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
+import 'package:sharely/design/widgets/file_thumb.dart';
+import 'package:sharely/design/widgets/status_badge.dart';
+import 'package:sharely/design/widgets/surface_card.dart';
 import 'package:sharely/features/transfer/state/send_state.dart';
+import 'package:sharely/features/transfer/transfer_formatting.dart';
+import 'package:sharely/features/transfer/widgets/transfer_progress_bar.dart';
 
-enum _FileProgress { done, current, queued }
+enum _FileProgress { done, current, waiting }
 
-/// Each file in the send: done, in progress with its percent, or queued.
+/// The queue of a send: each file is done, sending with a bar, or waiting.
 class SendFileList extends StatelessWidget {
   const new({required this.files, required this.bytesSent, super.key});
 
@@ -17,103 +22,155 @@ class SendFileList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final rows = <Widget>[];
     var bytesBefore = 0;
-    for (final file in files.take(_maxRows)) {
+    var filesDone = 0;
+    for (final file in files) {
       final sentOfFile = (bytesSent - bytesBefore).clamp(0, file.sizeBytes);
       bytesBefore += file.sizeBytes;
-      final progress = sentOfFile >= file.sizeBytes
-          ? _FileProgress.done
-          : sentOfFile > 0
-          ? _FileProgress.current
-          : _FileProgress.queued;
-      final percent = file.sizeBytes == 0
-          ? 0
-          : sentOfFile * 100 ~/ file.sizeBytes;
-      rows.add(_FileRow(name: file.name, progress: progress, percent: percent));
+      final isDone = sentOfFile >= file.sizeBytes;
+      if (isDone) filesDone++;
+      if (rows.length >= _maxRows) continue;
+      rows.add(
+        _FileRow(
+          file: file,
+          progress: isDone
+              ? _FileProgress.done
+              : (sentOfFile > 0
+                    ? _FileProgress.current
+                    : _FileProgress.waiting),
+          fraction: file.sizeBytes == 0 ? 0 : sentOfFile / file.sizeBytes,
+        ),
+      );
     }
-    final hidden = files.length - _maxRows;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 2,
-      children: [
-        ...rows,
-        if (hidden > 0)
-          Padding(
-            padding: const EdgeInsets.only(left: 36, top: 4),
-            child: Text(
-              'and $hidden more',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: SharelyColors.onInkMuted),
+    final hidden = files.length - rows.length;
+    return SurfaceCard(
+      radius: SharelyRadii.zone,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(textTheme, filesDone),
+          ...rows,
+          if (hidden > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+              child: Text(
+                'and $hidden more',
+                style: textTheme.bodySmall?.copyWith(
+                  color: SharelyColors.textSecondary,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(TextTheme textTheme, int filesDone) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Files', style: textTheme.labelMedium),
+          Text(
+            '$filesDone of ${files.length} done',
+            style: textTheme.bodySmall?.copyWith(
+              color: SharelyColors.textSecondary,
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _FileRow extends StatelessWidget {
   const new({
-    required this.name,
+    required this.file,
     required this.progress,
-    required this.percent,
+    required this.fraction,
   });
 
-  final String name;
+  final SendFileInfo file;
   final _FileProgress progress;
-  final int percent;
+  final double fraction;
 
   @override
   Widget build(BuildContext context) {
-    final (dotColor, textColor, status) = switch (progress) {
-      _FileProgress.done => (
-        SharelyColors.accent,
-        SharelyColors.surface,
-        'done',
-      ),
-      _FileProgress.current => (
-        SharelyColors.surface,
-        SharelyColors.surface,
-        '$percent%',
-      ),
-      _FileProgress.queued => (
-        SharelyColors.inkBorderStrong,
-        SharelyColors.onInkMuted,
-        'queued',
-      ),
-    };
+    final isCurrent = progress == _FileProgress.current;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       child: Row(
         spacing: SharelySpacing.md,
         children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-            child: progress == _FileProgress.done
-                ? const Icon(
-                    LucideIcons.check,
-                    size: 13,
-                    color: SharelyColors.ink,
-                  )
-                : null,
-          ),
+          FileThumb.forName(file.name, size: 36),
           Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(fontSize: 15, color: textColor),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 4,
+              children: [
+                Row(
+                  spacing: SharelySpacing.sm,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        file.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              fontWeight: isCurrent
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      formatByteCount(file.sizeBytes),
+                      style: sharelyMonoStyle(
+                        size: 12,
+                        color: SharelyColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isCurrent) TransferProgressBar(fraction: fraction),
+              ],
             ),
           ),
-          Text(
-            status,
-            style: sharelyMonoStyle(size: 12, color: SharelyColors.onInkMuted),
+          SizedBox(
+            width: 78,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildStatus(),
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildStatus() => switch (progress) {
+    _FileProgress.done => const StatusBadge(
+      label: 'Done',
+      tone: StatusTone.success,
+      icon: LucideIcons.check,
+      isPlain: true,
+    ),
+    _FileProgress.current => const StatusBadge(
+      label: 'Sending',
+      tone: StatusTone.connected,
+      icon: LucideIcons.arrowUp,
+      isPlain: true,
+    ),
+    _FileProgress.waiting => const StatusBadge(
+      label: 'Waiting',
+      tone: StatusTone.offline,
+      icon: LucideIcons.clock,
+      isPlain: true,
+    ),
+  };
 }

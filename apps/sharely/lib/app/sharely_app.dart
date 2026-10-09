@@ -11,8 +11,8 @@ class SharelyApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Sharely',
       debugShowCheckedModeBanner: false,
-      theme: SharelyTheme.light(),
-      themeMode: ThemeMode.light,
+      theme: SharelyTheme.dark(),
+      themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
     );
   }

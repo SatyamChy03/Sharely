@@ -49,15 +49,13 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('welcome screen shows the promise and trust chips', (
+  testWidgets('welcome screen shows the promise and how files travel', (
     tester,
   ) async {
     await pumpSharelyApp(tester);
 
     expect(find.text('Get started'), findsOneWidget);
-    expect(find.text('No ads'), findsOneWidget);
-    expect(find.text('No account'), findsOneWidget);
-    expect(find.text('No cloud'), findsOneWidget);
+    expect(find.text('Files go directly between your devices'), findsOneWidget);
   });
 
   testWidgets('a phone that is already paired opens on Home', (tester) async {

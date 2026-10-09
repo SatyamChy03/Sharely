@@ -2,198 +2,164 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 
-/// Photos, Files, Link and Clip shortcuts under the laptop card.
+/// "What do you want to send?": four shortcuts in a two-by-two grid.
 class SendTiles extends StatelessWidget {
   const new({
     required this.onPhotos,
     required this.onFiles,
     required this.onLink,
-    required this.onClip,
+    required this.onClipboard,
     super.key,
   });
 
+  /// Null while there is no laptop to send to.
   final VoidCallback? onPhotos;
   final VoidCallback? onFiles;
   final VoidCallback? onLink;
-  final VoidCallback? onClip;
+  final VoidCallback? onClipboard;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 214,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 10,
-        children: [
-          Expanded(child: _PhotosTile(onTap: onPhotos)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 10,
-              children: [
-                Expanded(child: _FilesTile(onTap: onFiles)),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 10,
-                    children: [
-                      Expanded(
-                        child: _SmallTile(
-                          icon: LucideIcons.link,
-                          label: 'Link',
-                          onTap: onLink,
-                        ),
-                      ),
-                      Expanded(
-                        child: _SmallTile(
-                          icon: LucideIcons.clipboard,
-                          label: 'Clip',
-                          onTap: onClip,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Column(
+      spacing: 10,
+      children: [
+        Row(
+          spacing: 10,
+          children: [
+            Expanded(
+              child: _Tile(
+                icon: LucideIcons.image,
+                label: 'Photos',
+                hint: 'Gallery',
+                onTap: onPhotos,
+              ),
             ),
-          ),
-        ],
-      ),
+            Expanded(
+              child: _Tile(
+                icon: LucideIcons.fileText,
+                label: 'Files',
+                hint: 'Docs & more',
+                onTap: onFiles,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          spacing: 10,
+          children: [
+            Expanded(
+              child: _Tile(
+                icon: LucideIcons.link,
+                label: 'Links',
+                hint: 'Or a note',
+                onTap: onLink,
+              ),
+            ),
+            Expanded(
+              child: _Tile(
+                icon: LucideIcons.clipboard,
+                label: 'Clipboard',
+                hint: 'Copied text',
+                onTap: onClipboard,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-/// White rounded tile that fades when its action isn't available.
 class _Tile extends StatelessWidget {
-  const new({required this.onTap, required this.child, this.padding = 14});
+  const new({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.onTap,
+  });
 
+  final IconData icon;
+  final String label;
+  final String hint;
   final VoidCallback? onTap;
-  final Widget child;
-  final double padding;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
+    return Opacity(
       opacity: onTap == null ? 0.5 : 1,
-      duration: SharelyMotion.fast,
       child: Material(
         color: SharelyColors.surface,
-        borderRadius: const BorderRadius.all(SharelyRadii.tile),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(SharelyRadii.zone),
+          side: BorderSide(color: SharelyColors.line),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(padding: EdgeInsets.all(padding), child: child),
+          hoverColor: SharelyColors.elevated,
+          child: Container(
+            height: 96,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: SharelyColors.primaryTint,
+                    borderRadius: BorderRadius.all(SharelyRadii.button),
+                  ),
+                  child: Icon(icon, size: 20, color: SharelyColors.primary),
+                ),
+                _TileLabel(label: label, hint: hint),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _PhotosTile extends StatelessWidget {
-  const new({required this.onTap});
+class _TileLabel extends StatelessWidget {
+  const new({required this.label, required this.hint});
 
-  final VoidCallback? onTap;
-
-  static const List<Color> _thumbnailShades = [
-    SharelyColors.mist,
-    SharelyColors.mistMid,
-    SharelyColors.mistDeep,
-    SharelyColors.mistLight,
-  ];
+  final String label;
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return _Tile(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 6,
-            crossAxisSpacing: 6,
-            childAspectRatio: 1.25,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              for (final shade in _thumbnailShades)
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: shade,
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
-                  ),
-                ),
-            ],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      spacing: SharelySpacing.sm,
+      children: [
+        Flexible(
+          flex: 3,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelLarge,
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 2,
-            children: [
-              Text(
-                'Photos',
-                style: textTheme.titleSmall?.copyWith(fontSize: 16),
-              ),
-              Text(
-                'Pick recent shots',
-                style: textTheme.bodySmall?.copyWith(
-                  color: SharelyColors.slate,
-                ),
-              ),
-            ],
+        ),
+        Flexible(
+          flex: 2,
+          child: Text(
+            hint,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w400,
+              color: SharelyColors.textSecondary,
+            ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilesTile extends StatelessWidget {
-  const new({required this.onTap});
-
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Tile(
-      onTap: onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Files',
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(fontSize: 16),
-          ),
-          const Icon(LucideIcons.file, size: 22, color: SharelyColors.ink),
-        ],
-      ),
-    );
-  }
-}
-
-class _SmallTile extends StatelessWidget {
-  const new({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Tile(
-      onTap: onTap,
-      padding: 12,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, size: 20, color: SharelyColors.ink),
-          Text(label, style: Theme.of(context).textTheme.titleSmall),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

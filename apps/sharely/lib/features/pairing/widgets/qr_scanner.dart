@@ -70,7 +70,7 @@ class _CameraUnavailable extends StatelessWidget {
           'your phone settings, then come back.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: SharelyColors.onInkSoft),
+              ?.copyWith(color: SharelyColors.textSecondary),
         ),
       ),
     );

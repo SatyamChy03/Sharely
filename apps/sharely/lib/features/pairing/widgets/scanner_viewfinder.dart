@@ -14,9 +14,9 @@ class ScannerViewfinder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: const BorderRadius.all(SharelyRadii.panel),
+      borderRadius: const BorderRadius.all(SharelyRadii.card),
       child: ColoredBox(
-        color: SharelyColors.ink,
+        color: SharelyColors.sunken,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -65,7 +65,7 @@ class _Corner extends StatelessWidget {
     return RotatedBox(
       quarterTurns: _quarterTurns,
       child: const CustomPaint(
-        size: Size.square(48),
+        size: Size.square(40),
         painter: _CornerPainter(),
       ),
     );
@@ -77,9 +77,9 @@ class _CornerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const strokeWidth = 5.0;
+    const strokeWidth = 3.0;
     const inset = strokeWidth / 2;
-    const radius = 18.0;
+    const radius = 14.0;
     final path = Path()
       ..moveTo(inset, size.height)
       ..lineTo(inset, radius)
@@ -91,7 +91,7 @@ class _CornerPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = SharelyColors.accentOnInk
+        ..color = SharelyColors.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
         ..strokeCap = StrokeCap.round,
@@ -108,11 +108,18 @@ class _ScanLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final line = Container(
-      height: 3,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
       decoration: const BoxDecoration(
-        color: SharelyColors.accentOnInk,
+        color: SharelyColors.primary,
         borderRadius: BorderRadius.all(Radius.circular(2)),
+        boxShadow: [
+          BoxShadow(
+            color: SharelyColors.primaryTint,
+            blurRadius: 14,
+            spreadRadius: 2,
+          ),
+        ],
       ),
     );
     return Align(

@@ -233,7 +233,7 @@ void main() {
       return connection;
     }
 
-    testWidgets('lists every laptop with connect, forget and pair another', (
+    testWidgets('lists every laptop with connect, remove and add device', (
       tester,
     ) async {
       final connection = await pump(tester);
@@ -241,8 +241,8 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Office'), findsOneWidget);
       expect(find.text('Connect'), findsNWidgets(2));
-      expect(find.text('Forget'), findsNWidgets(2));
-      expect(find.text('Pair another laptop'), findsOneWidget);
+      expect(find.text('Remove'), findsNWidgets(2));
+      expect(find.text('Add device'), findsOneWidget);
       // The laptop in use comes first.
       expect(
         tester.getTopLeft(find.text('Home')).dy,
@@ -254,14 +254,14 @@ void main() {
       expect(connection.calls, ['connect']);
     });
 
-    testWidgets('forgetting asks first and keeps the laptop on "Keep"', (
+    testWidgets('removing asks first and keeps the laptop on "Keep"', (
       tester,
     ) async {
       await pump(tester);
 
-      await tester.tap(find.text('Forget').first);
+      await tester.tap(find.text('Remove').first);
       await tester.pumpAndSettle();
-      expect(find.text('Forget Home?'), findsOneWidget);
+      expect(find.text('Remove Home?'), findsOneWidget);
 
       await tester.tap(find.text('Keep'));
       await tester.pumpAndSettle();
@@ -278,10 +278,10 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.text('Connect').first);
-      await tester.tap(find.text('Forget').first);
+      await tester.tap(find.text('Remove').first);
       await tester.pumpAndSettle();
       expect(connection.calls, isEmpty);
-      expect(find.text('Forget Home?'), findsNothing);
+      expect(find.text('Remove Home?'), findsNothing);
     });
   });
 }

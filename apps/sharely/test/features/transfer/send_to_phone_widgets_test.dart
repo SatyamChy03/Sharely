@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sharely/features/home/home_screen.dart';
 import 'package:sharely/features/home/widgets/quick_text_sheet.dart';
-import 'package:sharely/features/laptop/widgets/phone_send_card.dart';
+import 'package:sharely/features/laptop/widgets/phone_send_progress.dart';
+import 'package:sharely/features/laptop/widgets/phone_send_result.dart';
 import 'package:sharely/features/laptop/widgets/quick_text_bar.dart';
 import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
 import 'package:sharely/features/transfer/state/incoming_transfers_controller.dart';
@@ -122,11 +123,9 @@ void main() {
     final controller = _FixedOffers([_view()]);
     await _pumpHome(tester, controller: controller);
 
-    expect(find.text('satyam-LOQ is sending'), findsOneWidget);
-    expect(find.textContaining('2 files'), findsOneWidget);
+    expect(find.text('wants to send 2 files'), findsOneWidget);
     expect(find.text('app-release.apk'), findsOneWidget);
-    expect(find.text('APK'), findsOneWidget);
-    expect(find.text('Downloads/Sharely'), findsOneWidget);
+    expect(find.text('Total'), findsOneWidget);
 
     await tester.tap(find.text('Always accept from this laptop'));
     await tester.pump();
@@ -147,7 +146,7 @@ void main() {
       ],
     );
 
-    expect(find.text('Receiving from satyam-LOQ'), findsOneWidget);
+    expect(find.text('is sending 2 files'), findsOneWidget);
     expect(find.textContaining('50%'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Accept'), findsNothing);
@@ -215,7 +214,7 @@ void main() {
     expect(find.text('Copy'), findsOneWidget);
   });
 
-  testWidgets('the laptop card follows a send from waiting to done', (
+  testWidgets('the laptop follows a send from waiting to its result', (
     tester,
   ) async {
     const files = [(name: 'video.mp4', sizeBytes: 4000000000)];
@@ -223,12 +222,17 @@ void main() {
     var dismissals = 0;
     Future<void> show(SendWithFiles send) => _pumpWidget(
       tester,
-      PhoneSendCard(
-        send: send,
-        phoneName: 'Pixel 8',
-        onCancel: () => cancels++,
-        onDismiss: () => dismissals++,
-      ),
+      send is SendFailed
+          ? PhoneSendResult(
+              send: send,
+              phoneName: 'Pixel 8',
+              onDone: () => dismissals++,
+            )
+          : PhoneSendProgress(
+              send: send,
+              phoneName: 'Pixel 8',
+              onCancel: () => cancels++,
+            ),
     );
 
     await show(const SendAwaitingAcceptance(files: files));
@@ -243,15 +247,17 @@ void main() {
         bytesPerSecond: 50000000,
       ),
     );
-    expect(find.text('Sending 1 file to Pixel 8'), findsOneWidget);
-    expect(find.textContaining('1.0 GB of 4.0 GB'), findsOneWidget);
+    expect(find.text('Sending 1 file'), findsOneWidget);
+    expect(find.text('1.0 GB / 4.0 GB'), findsOneWidget);
     expect(find.textContaining('50.0 MB/s'), findsOneWidget);
 
     await show(
       const SendFailed(files: files, reason: TransferFailure.rejected),
     );
+    // The result mark animates in on a timer; let it finish.
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Pixel 8 declined the files.'), findsOneWidget);
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.text('Try again'));
     expect(dismissals, 1);
   });
 

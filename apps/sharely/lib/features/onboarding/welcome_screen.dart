@@ -5,28 +5,24 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/app/routes.dart';
-import 'package:sharely/design/theme.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
 import 'package:sharely/design/widgets/sharely_wordmark.dart';
-import 'package:sharely/features/onboarding/widgets/transfer_orbit.dart';
+import 'package:sharely/features/onboarding/widgets/welcome_illustration.dart';
 
-/// First screen for new users (Get started, step 1 of the v2 design).
+/// First screen for new users (M01 of the v3 design).
 class WelcomeScreen extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: SharelyTheme.dark(),
-      child: const AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: Scaffold(
-          body: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(24, 16, 24, 24),
-              child: _WelcomeContent(),
-            ),
+    return const AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(24, 28, 24, 32),
+            child: _WelcomeContent(),
           ),
         ),
       ),
@@ -44,14 +40,14 @@ class _WelcomeContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SharelyWordmark(),
-        // The orbit absorbs spare height and shrinks first on short screens.
-        Expanded(
+        // The picture absorbs spare height and shrinks first on short phones.
+        const Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: SharelySpacing.lg),
+            padding: EdgeInsets.symmetric(vertical: SharelySpacing.md),
             child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: const TransferOrbit(),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: WelcomeIllustration(),
               ),
             ),
           ),
@@ -59,38 +55,28 @@ class _WelcomeContent extends StatelessWidget {
         ...[
               const _Headline(),
               Padding(
-                padding: const EdgeInsets.only(top: SharelySpacing.md),
+                padding: const EdgeInsets.only(top: 14),
                 child: Text(
-                  'Photos, files, links and your clipboard, '
-                  'straight over your Wi-Fi.',
+                  'Pair your phone and laptop once. Then send photos, '
+                  'files and links in a tap.',
                   style: textTheme.bodyLarge?.copyWith(
-                    color: SharelyColors.onInkSoft,
+                    height: 1.5,
+                    color: SharelyColors.textSecondary,
                   ),
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.only(top: SharelySpacing.xl),
-                child: _TrustChips(),
               ),
             ]
             .animate(interval: 70.ms)
             .fadeIn(duration: SharelyMotion.slow)
             .slideY(begin: 0.06, curve: SharelyMotion.emphasized),
-        const Gap(SharelySpacing.xl),
+        const Gap(SharelySpacing.xxl),
         SharelyButton(
           label: 'Get started',
           trailingIcon: LucideIcons.arrowRight,
           onPressed: () => context.push(AppRoutes.scan),
         ),
-        const Gap(SharelySpacing.md),
-        Center(
-          child: Text(
-            'Takes about 2 minutes',
-            style: textTheme.bodyMedium?.copyWith(
-              color: SharelyColors.onInkMuted,
-            ),
-          ),
-        ),
+        const Gap(14),
+        const _DirectTransferNote(),
       ],
     );
   }
@@ -103,43 +89,40 @@ class _Headline extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text.rich(
       const TextSpan(
-        text: 'Send anything to your laptop. ',
+        text: 'Transfer anything between your devices. ',
         children: [
           TextSpan(
             text: 'Instantly.',
-            style: TextStyle(color: SharelyColors.accentOnInk),
+            style: TextStyle(color: SharelyColors.primary),
           ),
         ],
       ),
-      style: Theme.of(context).textTheme.displayMedium,
+      style: Theme.of(context).textTheme.displayMedium?.copyWith(height: 1.08),
     );
   }
 }
 
-class _TrustChips extends StatelessWidget {
+class _DirectTransferNote extends StatelessWidget {
   const new();
-
-  static const _promises = ['No ads', 'No account', 'No cloud'];
 
   @override
   Widget build(BuildContext context) {
-    final chipStyle = Theme.of(context).textTheme.labelMedium
-        ?.copyWith(fontSize: 13, color: SharelyColors.onInkSoft);
-    return Wrap(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       spacing: SharelySpacing.sm,
-      runSpacing: SharelySpacing.sm,
       children: [
-        for (final promise in _promises)
-          DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(SharelyRadii.chip),
-              border: Border.all(color: SharelyColors.inkBorderStrong),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              child: Text(promise, style: chipStyle),
-            ),
+        const Icon(
+          LucideIcons.shieldCheck,
+          size: 16,
+          color: SharelyColors.primary,
+        ),
+        Flexible(
+          child: Text(
+            'Files go directly between your devices',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
+        ),
       ],
     );
   }

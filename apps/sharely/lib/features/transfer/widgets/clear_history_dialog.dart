@@ -5,7 +5,7 @@ Future<bool> confirmClearHistory(BuildContext context) async {
   final isConfirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Clear history?'),
+      title: const Text('Clear activity?'),
       content: const Text(
         'This removes the list on this device. Your files are not deleted.',
       ),

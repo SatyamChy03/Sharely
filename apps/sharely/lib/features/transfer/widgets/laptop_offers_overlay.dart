@@ -18,14 +18,10 @@ class LaptopOffersOverlay extends ConsumerWidget {
     if (view == null) return const SizedBox.shrink();
     return Stack(
       children: [
-        ModalBarrier(
-          dismissible: false,
-          color: SharelyColors.ink.withValues(alpha: 0.55),
-        ),
+        const ModalBarrier(dismissible: false, color: SharelyColors.scrim),
         Align(
           alignment: Alignment.bottomCenter,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(10),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxSheetWidth),
               child:

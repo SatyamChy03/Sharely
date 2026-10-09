@@ -1,92 +1,127 @@
 import 'package:flutter/material.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
+import 'package:sharely/design/widgets/file_thumb.dart';
 import 'package:sharely/features/transfer/transfer_formatting.dart';
 
-/// Offered files as rows: type badge, name and size.
+/// Offered files in a well: thumbnail, name and size, then the total.
 class OfferFileRows extends StatelessWidget {
-  const new({required this.fileNames, required this.fileSizes, super.key});
+  const new({
+    required this.fileNames,
+    required this.fileSizes,
+    required this.totalBytes,
+    super.key,
+    this.isCompact = false,
+  });
 
   final List<String> fileNames;
   final List<int> fileSizes;
+  final int totalBytes;
+
+  /// Smaller rows for the laptop's notification card.
+  final bool isCompact;
 
   static const _maxShown = 4;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final hidden = fileNames.length - _maxShown;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 6,
-      children: [
-        for (final (index, name) in fileNames.take(_maxShown).indexed)
-          _FileRow(
-            name: name,
-            sizeBytes: index < fileSizes.length ? fileSizes[index] : 0,
-          ),
-        if (hidden > 0)
+    return Container(
+      padding: const EdgeInsets.all(SharelySpacing.xs),
+      decoration: BoxDecoration(
+        color: isCompact ? SharelyColors.surface : SharelyColors.background,
+        borderRadius: BorderRadius.all(
+          isCompact ? SharelyRadii.row : SharelyRadii.tile,
+        ),
+        border: isCompact ? null : Border.all(color: SharelyColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (index, name) in fileNames.take(_maxShown).indexed)
+            _FileRow(
+              name: name,
+              sizeBytes: index < fileSizes.length ? fileSizes[index] : 0,
+              isCompact: isCompact,
+            ),
+          if (hidden > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+              child: Text(
+                '+$hidden more',
+                style: textTheme.bodySmall?.copyWith(
+                  color: SharelyColors.textSecondary,
+                ),
+              ),
+            ),
+          const Divider(height: 1, color: SharelyColors.line),
           Padding(
-            padding: const EdgeInsets.only(left: 14, top: 2),
-            child: Text(
-              '+$hidden more',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: SharelyColors.slate),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: SharelyColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  formatByteCount(totalBytes),
+                  style: sharelyMonoStyle(
+                    size: 13,
+                    color: SharelyColors.text,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _FileRow extends StatelessWidget {
-  const new({required this.name, required this.sizeBytes});
+  const new({
+    required this.name,
+    required this.sizeBytes,
+    required this.isCompact,
+  });
 
   final String name;
   final int sizeBytes;
-
-  static const _maxTypeChars = 5;
-
-  String get _type {
-    final dot = name.lastIndexOf('.');
-    final extension = dot > 0 ? name.substring(dot + 1) : '';
-    final isShown = extension.isNotEmpty && extension.length <= _maxTypeChars;
-    return isShown ? extension.toUpperCase() : 'FILE';
-  }
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: const BoxDecoration(
-        color: SharelyColors.paper,
-        borderRadius: BorderRadius.all(Radius.circular(14)),
-      ),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: isCompact ? 5 : 8),
       child: Row(
-        spacing: SharelySpacing.md,
+        spacing: isCompact ? 10 : SharelySpacing.md,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: const BoxDecoration(
-              color: SharelyColors.ink,
-              borderRadius: BorderRadius.all(Radius.circular(6)),
-            ),
-            child: Text(
-              _type,
-              style: sharelyMonoStyle(size: 11, color: SharelyColors.surface),
-            ),
-          ),
+          FileThumb.forName(name, size: isCompact ? 28 : 40),
           Expanded(
             child: Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(fontSize: 15),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: isCompact ? 13 : 15,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           Text(
             formatByteCount(sizeBytes),
-            style: sharelyMonoStyle(size: 12, color: SharelyColors.slate),
+            style: sharelyMonoStyle(
+              size: isCompact ? 12 : 13,
+              color: isCompact
+                  ? SharelyColors.textSecondary
+                  : SharelyColors.text,
+            ),
           ),
         ],
       ),

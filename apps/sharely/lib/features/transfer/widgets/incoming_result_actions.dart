@@ -2,11 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
-import 'package:sharely/features/transfer/widgets/incoming_offer_actions.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-final _log = Logger('IncomingResult');
+import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
+import 'package:sharely/features/laptop/open_folder.dart';
 
 /// After a transfer: open the save folder (if files arrived) or close.
 class IncomingResultActions extends StatelessWidget {
@@ -18,26 +16,26 @@ class IncomingResultActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      spacing: 10,
+      spacing: SharelySpacing.sm,
       children: [
         if (savedFiles.isNotEmpty)
           Expanded(
-            child: NotificationButton(
+            child: SharelyButton(
               label: 'Show in folder',
-              onPressed: () => unawaited(_openSaveFolder()),
+              height: 40,
+              onPressed: () =>
+                  unawaited(openFolder(savedFiles.first.parent.path)),
             ),
           ),
         Expanded(
-          child: NotificationButton(label: 'Close', onPressed: onDismiss),
+          child: SharelyButton(
+            label: 'Close',
+            variant: SharelyButtonVariant.secondary,
+            height: 40,
+            onPressed: onDismiss,
+          ),
         ),
       ],
     );
-  }
-
-  Future<void> _openSaveFolder() async {
-    final folder = Uri.directory(savedFiles.first.parent.path);
-    if (!await launchUrl(folder)) {
-      _log.warning('No app could open the save folder');
-    }
   }
 }

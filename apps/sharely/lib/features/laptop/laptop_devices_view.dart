@@ -1,139 +1,191 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
-import 'package:sharely/design/typography.dart';
+import 'package:sharely/design/widgets/icon_tile.dart';
+import 'package:sharely/design/widgets/section_label.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
-import 'package:sharely/features/laptop/widgets/pair_new_device_panel.dart';
+import 'package:sharely/design/widgets/surface_card.dart';
+import 'package:sharely/features/laptop/widgets/laptop_page.dart';
+import 'package:sharely/features/laptop/widgets/page_heading.dart';
+import 'package:sharely/features/laptop/widgets/paired_phone_card.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
-import 'package:sharely/features/pairing/widgets/paired_device_card.dart';
 import 'package:sharely/features/transfer/state/connected_phones.dart';
 import 'package:sharely_core/sharely_core.dart';
 
-/// Laptop "Devices": who is paired, who is connected, and pairing one more.
+/// Laptop Devices (D14): who is paired, who is connected, and pairing more.
 class LaptopDevicesView extends ConsumerWidget {
-  const new({super.key});
+  const new({required this.deviceName, required this.onSendTo, super.key});
 
-  static const _wideLayoutMinWidth = 960.0;
-  static const _qrPanelWidth = 480.0;
+  /// This laptop's own name.
+  final String deviceName;
+
+  /// Opens Home to send to the chosen device.
+  final VoidCallback onSendTo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pairing = ref.watch(laptopPairingProvider).value;
     final devices = ref.watch(pairedDevicesProvider).value ?? const [];
     final connectedIds = ref.watch(connectedPhonesProvider);
-    ref.listen(laptopPairingProvider, (previous, next) {
-      final paired = next.value;
-      if (previous?.value is! LaptopWaitingForPhone) return;
-      if (paired is! LaptopPairedWithPhone) return;
-      // Cancelling also lands here; only a new device earns the message.
-      if (devices.any((device) => device.deviceId == paired.phone.deviceId)) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Paired with ${paired.phone.deviceName}.')),
-      );
-    });
-    final controller = ref.read(laptopPairingProvider.notifier);
-    final list = _DeviceList(
-      devices: devices,
-      connectedIds: connectedIds,
-      isOnNetwork: pairing is! LaptopNotOnNetwork,
-      onPairNew: pairing is LaptopPairedWithPhone
-          ? controller.showNewCode
-          : null,
-    );
-    final qrPanel = pairing is LaptopWaitingForPhone
-        ? PairNewDevicePanel(waiting: pairing, onCancel: controller.stopPairing)
-        : null;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-        child: _arrange(
-          list: list,
-          qrPanel: qrPanel,
-          isWide: constraints.maxWidth >= _wideLayoutMinWidth,
-        ),
-      ),
-    );
-  }
-
-  Widget _arrange({
-    required Widget list,
-    required Widget? qrPanel,
-    required bool isWide,
-  }) {
-    if (qrPanel == null) return list;
-    if (!isWide) return Column(spacing: 24, children: [qrPanel, list]);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 32,
+    final connectedCount = devices
+        .where((device) => connectedIds.contains(device.deviceId))
+        .length;
+    final isOnNetwork = pairing is! LaptopNotOnNetwork;
+    return LaptopPage(
       children: [
-        Expanded(child: list),
-        SizedBox(width: _qrPanelWidth, child: qrPanel),
+        PageHeading(
+          title: 'Devices',
+          subtitle:
+              '$connectedCount of ${devices.length} paired devices connected.',
+          trailing: SharelyButton(
+            label: 'Add device',
+            leadingIcon: LucideIcons.plus,
+            height: SharelySizes.buttonMedium,
+            isExpanded: false,
+            onPressed: isOnNetwork ? () => _pairAnother(context, ref) : null,
+          ),
+        ),
+        _ThisDeviceCard(deviceName: deviceName, isOnNetwork: isOnNetwork),
+        const SectionLabel('Paired devices'),
+        Wrap(
+          spacing: SharelySpacing.lg,
+          runSpacing: SharelySpacing.lg,
+          children: [
+            for (final device in devices.reversed)
+              SizedBox(
+                width: 280,
+                child: PairedPhoneCard(
+                  device: device,
+                  isConnected: connectedIds.contains(device.deviceId),
+                  onSend: onSendTo,
+                  onRemove: () =>
+                      unawaited(_confirmRemove(context, ref, device)),
+                ),
+              ),
+          ],
+        ),
+        const _PairedOnlyNote(),
       ],
     );
   }
+
+  void _pairAnother(BuildContext context, WidgetRef ref) {
+    ref.read(laptopPairingProvider.notifier).showNewCode();
+    context.go(AppRoutes.laptopPairing);
+  }
+
+  Future<void> _confirmRemove(
+    BuildContext context,
+    WidgetRef ref,
+    PairedDevice device,
+  ) async {
+    final isConfirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${device.deviceName}?'),
+        content: const Text(
+          'It can no longer send to or receive from this laptop until it '
+          'pairs again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (isConfirmed != true) return;
+    await ref.read(pairedDevicesProvider.notifier).forget(device.deviceId);
+    final remaining = ref.read(pairedDevicesProvider).value ?? const [];
+    // With nothing paired, the laptop goes back to showing its code.
+    if (remaining.isEmpty && context.mounted) _pairAnother(context, ref);
+  }
 }
 
-class _DeviceList extends StatelessWidget {
-  const new({
-    required this.devices,
-    required this.connectedIds,
-    required this.isOnNetwork,
-    required this.onPairNew,
-  });
+class _ThisDeviceCard extends StatelessWidget {
+  const new({required this.deviceName, required this.isOnNetwork});
 
-  final List<PairedDevice> devices;
-  final Set<String> connectedIds;
+  final String deviceName;
   final bool isOnNetwork;
-
-  /// Null while a code is already on show.
-  final VoidCallback? onPairNew;
-
-  static const _pairButtonWidth = 260.0;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final connectedCount = devices
-        .where((device) => connectedIds.contains(device.deviceId))
-        .length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 18,
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Row(
+        spacing: SharelySpacing.lg,
+        children: [
+          const IconTile(
+            icon: LucideIcons.laptop,
+            size: 48,
+            radius: SharelyRadii.tile,
+            color: SharelyColors.text,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
+              children: [
+                Text(
+                  'This device',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: SharelyColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  deviceName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleMedium?.copyWith(fontSize: 18),
+                ),
+                Text(
+                  isOnNetwork
+                      ? 'Visible to paired devices on this Wi-Fi'
+                      : 'Connect this laptop to Wi-Fi to pair a device.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: SharelyColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PairedOnlyNote extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      spacing: 10,
       children: [
-        Text(
-          'Devices',
-          style: textTheme.headlineMedium?.copyWith(
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.2,
-          ),
+        const Icon(
+          LucideIcons.shieldCheck,
+          size: 15,
+          color: SharelyColors.textSecondary,
         ),
-        Text(
-          '$connectedCount of ${devices.length} connected',
-          style: sharelyMonoStyle(size: 13, color: SharelyColors.slate),
-        ),
-        for (final device in devices.reversed)
-          PairedDeviceCard(
-            device: device,
-            isConnected: connectedIds.contains(device.deviceId),
-          ),
-        if (!isOnNetwork)
-          Text(
-            'Connect this laptop to Wi-Fi to pair a device.',
-            style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
-          ),
-        SizedBox(
-          width: _pairButtonWidth,
-          child: SharelyButton(
-            label: 'Pair a new device',
-            variant: SharelyButtonVariant.ink,
-            leadingIcon: LucideIcons.plus,
-            onPressed: onPairNew,
+        Expanded(
+          child: Text(
+            'Only paired devices can send to this laptop.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
         ),
       ],

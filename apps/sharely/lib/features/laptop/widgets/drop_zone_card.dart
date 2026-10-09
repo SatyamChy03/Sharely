@@ -2,9 +2,10 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
-import 'package:sharely/features/laptop/widgets/dashed_border.dart';
+import 'package:sharely/design/widgets/dashed_border.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 
-/// "Drop anything here": the laptop's big send-to-phone target.
+/// "Drop anything here": the laptop's big send-to-phone target (D05, D07).
 class DropZoneCard extends StatefulWidget {
   const new({
     required this.phoneName,
@@ -34,6 +35,29 @@ class _DropZoneCardState extends State<DropZoneCard> {
   @override
   Widget build(BuildContext context) {
     final onDropPaths = widget.onDropPaths;
+    final zone = AnimatedContainer(
+      duration: SharelyMotion.medium,
+      constraints: const BoxConstraints(minHeight: 380),
+      padding: const EdgeInsets.all(SharelySpacing.xl),
+      decoration: BoxDecoration(
+        color: _isDraggingOver
+            ? SharelyColors.primaryTint
+            : SharelyColors.sunken,
+        borderRadius: const BorderRadius.all(SharelyRadii.zone),
+        border: _isDraggingOver
+            ? Border.all(color: SharelyColors.primary, width: 2)
+            : null,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: SharelySpacing.xl),
+          _buildContent(context),
+          const SizedBox(height: SharelySpacing.xxl),
+          _DirectNote(phoneName: widget.phoneName),
+        ],
+      ),
+    );
     return DropTarget(
       enable: onDropPaths != null,
       onDragEntered: (_) => _setDraggingOver(isOver: true),
@@ -42,140 +66,138 @@ class _DropZoneCardState extends State<DropZoneCard> {
         _setDraggingOver(isOver: false);
         onDropPaths?.call([for (final file in details.files) file.path]);
       },
-      child: DashedBorder(
-        color: _isDraggingOver ? SharelyColors.accent : SharelyColors.mistDeep,
-        radius: 32,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
-          decoration: BoxDecoration(
-            color: _isDraggingOver
-                ? SharelyColors.mistLight
-                : SharelyColors.surface,
-            borderRadius: const BorderRadius.all(SharelyRadii.panel),
-          ),
-          child: _buildContent(context),
-        ),
-      ),
+      child: _isDraggingOver
+          ? zone
+          : DashedBorder(
+              color: SharelyColors.lineHover,
+              radius: 16,
+              strokeWidth: 1.5,
+              child: zone,
+            ),
     );
   }
 
   Widget _buildContent(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Column(
-      spacing: SharelySpacing.lg,
+      spacing: 14,
       children: [
-        const _UploadBadge(),
-        Text(
-          _isDraggingOver ? 'Drop to send' : 'Drop anything here',
-          textAlign: TextAlign.center,
-          style: textTheme.headlineSmall?.copyWith(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.8,
+        _buildIcon(),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _isDraggingOver ? 'Drop to send' : 'Drop anything here',
+            textAlign: TextAlign.center,
+            style: textTheme.headlineLarge,
           ),
         ),
         Text(
-          'Files and folders of any size go straight to ${widget.phoneName}',
+          _isDraggingOver
+              ? 'Release to send to ${widget.phoneName}'
+              : 'Drag & drop files or folders',
           textAlign: TextAlign.center,
-          style: textTheme.bodyMedium?.copyWith(
-            color: SharelyColors.slate,
-            fontSize: 15,
+          style: textTheme.bodyLarge?.copyWith(
+            color: SharelyColors.textSecondary,
           ),
         ),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _ZoneButton(
-              label: 'Choose files',
-              isPrimary: true,
-              onPressed: widget.onChooseFiles,
-            ),
-            _ZoneButton(
-              label: 'Choose folder',
-              onPressed: widget.onChooseFolder,
-            ),
-          ],
-        ),
+        if (!_isDraggingOver) ...[
+          const _OrDivider(),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              SharelyButton(
+                label: 'Choose files',
+                leadingIcon: LucideIcons.file,
+                height: SharelySizes.buttonMedium,
+                isExpanded: false,
+                onPressed: widget.onChooseFiles,
+              ),
+              SharelyButton(
+                label: 'Choose folder',
+                leadingIcon: LucideIcons.folder,
+                variant: SharelyButtonVariant.secondary,
+                height: SharelySizes.buttonMedium,
+                isExpanded: false,
+                onPressed: widget.onChooseFolder,
+              ),
+            ],
+          ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildIcon() {
+    return AnimatedContainer(
+      duration: SharelyMotion.medium,
+      curve: SharelyMotion.standard,
+      width: 72,
+      height: 72,
+      transform: Matrix4.translationValues(0, _isDraggingOver ? -6 : 0, 0),
+      decoration: BoxDecoration(
+        color: _isDraggingOver ? SharelyColors.primary : SharelyColors.elevated,
+        borderRadius: const BorderRadius.all(SharelyRadii.zone),
+      ),
+      child: Icon(
+        LucideIcons.upload,
+        size: 32,
+        color: _isDraggingOver
+            ? SharelyColors.onPrimary
+            : SharelyColors.primary,
+      ),
     );
   }
 }
 
-class _UploadBadge extends StatelessWidget {
+class _OrDivider extends StatelessWidget {
   const new();
 
   @override
   Widget build(BuildContext context) {
-    final ring = BoxDecoration(
-      shape: BoxShape.circle,
-      border: Border.all(color: SharelyColors.mist),
-    );
-    return SizedBox.square(
-      dimension: 120,
-      child: Stack(
-        alignment: Alignment.center,
+    return SizedBox(
+      width: 220,
+      child: Row(
+        spacing: SharelySpacing.md,
         children: [
-          DecoratedBox(
-            decoration: ring,
-            child: const SizedBox.square(dimension: 120),
+          const Expanded(child: Divider(height: 1, color: SharelyColors.line)),
+          Text(
+            'or',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
-          DecoratedBox(
-            decoration: ring,
-            child: const SizedBox.square(dimension: 80),
-          ),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: const BoxDecoration(
-              color: SharelyColors.ink,
-              borderRadius: BorderRadius.all(Radius.circular(18)),
-            ),
-            child: const Icon(
-              LucideIcons.arrowUp,
-              size: 26,
-              color: SharelyColors.surface,
-            ),
-          ),
+          const Expanded(child: Divider(height: 1, color: SharelyColors.line)),
         ],
       ),
     );
   }
 }
 
-class _ZoneButton extends StatelessWidget {
-  const new({
-    required this.label,
-    required this.onPressed,
-    this.isPrimary = false,
-  });
+class _DirectNote extends StatelessWidget {
+  const new({required this.phoneName});
 
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isPrimary;
+  final String phoneName;
 
   @override
   Widget build(BuildContext context) {
-    final style = TextButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      backgroundColor: isPrimary ? SharelyColors.ink : SharelyColors.surface,
-      foregroundColor: isPrimary ? SharelyColors.surface : SharelyColors.ink,
-      disabledBackgroundColor: isPrimary
-          ? SharelyColors.ink.withValues(alpha: 0.4)
-          : SharelyColors.surface,
-      disabledForegroundColor: isPrimary
-          ? SharelyColors.surface.withValues(alpha: 0.7)
-          : SharelyColors.slate,
-      textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 15),
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-        side: isPrimary
-            ? BorderSide.none
-            : const BorderSide(color: SharelyColors.mist, width: 1.5),
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      spacing: SharelySpacing.sm,
+      children: [
+        const Icon(
+          LucideIcons.shieldCheck,
+          size: 15,
+          color: SharelyColors.primary,
+        ),
+        Flexible(
+          child: Text(
+            'Files go directly to $phoneName',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: SharelyColors.textSecondary),
+          ),
+        ),
+      ],
     );
-    return TextButton(onPressed: onPressed, style: style, child: Text(label));
   }
 }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
+import 'package:sharely/design/widgets/surface_card.dart';
 
-/// A small raised tile on dark: a muted label over a mono value.
+/// A labelled number under the progress ring, such as speed or time left.
 class SendStatTile extends StatelessWidget {
   const new({required this.label, required this.value, super.key});
 
@@ -11,24 +12,23 @@ class SendStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: SharelyColors.inkRaised,
-        borderRadius: BorderRadius.all(Radius.circular(18)),
-      ),
+    return SurfaceCard(
+      radius: SharelyRadii.tile,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 2,
+        spacing: 4,
         children: [
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: SharelyColors.onInkMuted),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
           Text(
             value,
-            style: sharelyMonoStyle(size: 20, color: SharelyColors.surface),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: sharelyMonoStyle(size: 18, color: SharelyColors.text),
           ),
         ],
       ),

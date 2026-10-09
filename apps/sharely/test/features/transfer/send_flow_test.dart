@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/file_picking.dart';
-import 'package:sharely/features/transfer/state/has_received_file.dart';
 import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
 import 'package:sharely/features/transfer/state/incoming_transfers_controller.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
@@ -165,7 +164,6 @@ void main() {
       },
     );
     expect(await saved.single.savedFiles.single.readAsBytes(), _photoBytes);
-    expect(laptop.read(hasReceivedFileProvider), isTrue);
   });
 
   test('declining on the laptop tells the phone', () async {

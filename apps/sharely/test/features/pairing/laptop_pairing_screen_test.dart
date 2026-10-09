@@ -56,7 +56,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Waiting for your phone…'), findsOneWidget);
+    expect(find.text('Waiting for a scan…'), findsOneWidget);
     expect(find.text('482 913'), findsOneWidget);
   });
 
@@ -76,7 +76,8 @@ void main() {
       ),
     );
 
-    expect(find.text("Paired with Satyam's Phone"), findsOneWidget);
-    expect(find.text('Open Sharely'), findsOneWidget);
+    expect(find.text("Satyam's Phone is ready"), findsOneWidget);
+    expect(find.text('Start sending'), findsOneWidget);
+    expect(find.text('Pair another device'), findsOneWidget);
   });
 }

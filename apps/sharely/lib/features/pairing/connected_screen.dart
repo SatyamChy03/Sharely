@@ -1,76 +1,135 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/app/routes.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/result_mark.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
+import 'package:sharely/design/widgets/status_badge.dart';
+import 'package:sharely/design/widgets/surface_card.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
-import 'package:sharely/features/pairing/widgets/connected_illustration.dart';
-import 'package:sharely/features/pairing/widgets/paired_device_card.dart';
-import 'package:sharely/features/pairing/widgets/step_progress.dart';
 
-/// Get started step 3 of 3: the phone now trusts the laptop.
+/// Pairing finished (M05): the phone now trusts the laptop.
 class ConnectedScreen extends ConsumerWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final devices = ref.watch(pairedDevicesProvider).value ?? const [];
+    final laptopName = devices.isEmpty
+        ? 'Your laptop'
+        : devices.last.deviceName;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Align(
-                alignment: Alignment.centerRight,
-                child: SizedBox(
-                  height: 48,
-                  child: StepProgress(currentStep: 3),
-                ),
+              const Spacer(),
+              const ExcludeSemantics(child: ResultMark(size: 128)),
+              const Gap(28),
+              const StatusBadge(label: 'Connected', tone: StatusTone.connected),
+              const Gap(SharelySpacing.md),
+              Text(
+                laptopName,
+                textAlign: TextAlign.center,
+                style: textTheme.displaySmall,
               ),
-              const Gap(SharelySpacing.lg),
-              const Flexible(child: ConnectedIllustration()),
-              const Gap(SharelySpacing.xl),
-              ...[
-                    Text("You're connected.", style: textTheme.headlineLarge),
-                    Padding(
-                      padding: const EdgeInsets.only(top: SharelySpacing.sm),
-                      child: Text(
-                        "Your phone and laptop are paired. Let's send "
-                        'something to make sure it works.',
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: SharelyColors.slate,
-                        ),
-                      ),
-                    ),
-                    if (devices.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: SharelySpacing.xl),
-                        child: PairedDeviceCard(device: devices.last),
-                      ),
-                  ]
-                  .animate(interval: 70.ms)
-                  .fadeIn(duration: SharelyMotion.slow)
-                  .slideY(begin: 0.08, curve: SharelyMotion.emphasized),
+              const Gap(SharelySpacing.md),
+              const _ConnectionFacts(),
+              const Gap(SharelySpacing.xxl),
+              const _PairedForNextTimeCard(),
               const Spacer(),
               SharelyButton(
-                label: 'Send a test photo',
-                variant: SharelyButtonVariant.ink,
+                label: 'Start sending',
+                trailingIcon: LucideIcons.arrowRight,
                 onPressed: () => context.go(AppRoutes.home),
               ),
-              const Gap(SharelySpacing.sm),
-              TextButton(
-                onPressed: () => context.go(AppRoutes.home),
-                child: const Text('Skip for now'),
+              const Gap(10),
+              SharelyButton(
+                label: 'Pair another device',
+                variant: SharelyButtonVariant.ghost,
+                height: SharelySizes.buttonMedium,
+                onPressed: () => context.go(AppRoutes.scan),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ConnectionFacts extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      color: SharelyColors.textSecondary,
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      spacing: 6,
+      children: [
+        const Icon(LucideIcons.wifi, size: 15, color: SharelyColors.primary),
+        Text('Wi-Fi', style: style),
+        Text('·', style: style),
+        Text('Direct, device to device', style: style),
+      ],
+    );
+  }
+}
+
+class _PairedForNextTimeCard extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      height: 1.5,
+      color: SharelyColors.textSecondary,
+    );
+    return SurfaceCard(
+      radius: SharelyRadii.zone,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: SharelySpacing.md,
+        children: [
+          const Icon(
+            LucideIcons.refreshCw,
+            size: 20,
+            color: SharelyColors.primary,
+          ),
+          Expanded(
+            child: Text.rich(
+              const TextSpan(
+                text: 'Paired for next time. ',
+                style: TextStyle(
+                  color: SharelyColors.text,
+                  fontWeight: FontWeight.w500,
+                ),
+                children: [
+                  TextSpan(
+                    text:
+                        'Your devices reconnect on their own whenever '
+                        'they share a network.',
+                    style: TextStyle(
+                      color: SharelyColors.textSecondary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+              style: style,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -113,7 +113,7 @@ void main() {
     expect(client.lastInvite, isNull);
   });
 
-  testWidgets('Pair unlocks only once six digits are typed', (tester) async {
+  testWidgets('Connect unlocks only once six digits are typed', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -121,10 +121,13 @@ void main() {
       const ProviderScope(child: MaterialApp(home: CodeEntryScreen())),
     );
     TextButton pairButton() => tester.widget<TextButton>(
-      find.ancestor(of: find.text('Pair'), matching: find.byType(TextButton)),
+      find.ancestor(
+        of: find.text('Connect'),
+        matching: find.byType(TextButton),
+      ),
     );
 
-    expect(find.text('Type the code from your laptop'), findsOneWidget);
+    expect(find.text('Enter pairing code'), findsOneWidget);
     expect(pairButton().onPressed, isNull);
 
     await tester.enterText(find.byType(TextField), '482913');

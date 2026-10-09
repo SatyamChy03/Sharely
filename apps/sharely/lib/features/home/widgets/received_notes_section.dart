@@ -17,7 +17,7 @@ class ReceivedNotesSection extends ConsumerWidget {
     if (notes.isEmpty) return const SizedBox.shrink();
     final controller = ref.read(receivedNotesProvider.notifier);
     return Padding(
-      padding: const EdgeInsets.only(bottom: SharelySpacing.lg),
+      padding: const EdgeInsets.only(bottom: SharelySpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: SharelySpacing.sm,
