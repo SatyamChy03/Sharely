@@ -6,6 +6,8 @@ import 'package:sharely/features/transfer/state/laptop_connection_controller.dar
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 class _FixedPairedDevices extends PairedDevicesNotifier {
   new(this._devices);
 
@@ -74,7 +76,11 @@ void main() {
     final phone = await _phoneWith(
       [
         _laptop(
-          endpoint: DeviceEndpoint.parse(host: '192.168.1.24', port: 53891),
+          endpoint: DeviceEndpoint.parse(
+            host: '192.168.1.24',
+            port: 53891,
+            certFingerprint: testFingerprint,
+          ),
         ),
       ],
       connector: (endpoint, authHeaders) async {
@@ -104,10 +110,15 @@ void main() {
   });
 
   test('a laptop that moved is followed to its new address', () async {
-    final oldEndpoint = DeviceEndpoint.parse(host: '172.25.8.25', port: 53891);
+    final oldEndpoint = DeviceEndpoint.parse(
+      host: '172.25.8.25',
+      port: 53891,
+      certFingerprint: testFingerprint,
+    );
     final newEndpoint = DeviceEndpoint.parse(
       host: '172.25.13.173',
       port: 53891,
+      certFingerprint: testFingerprint,
     );
     final triedEndpoints = <DeviceEndpoint>[];
     final phone = await _phoneWith(

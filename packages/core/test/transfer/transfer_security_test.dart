@@ -33,19 +33,25 @@ Future<int> _put(
   String path = '/v1/transfers/$_transferId/0',
   int? contentLength,
 }) async {
-  final client = HttpClient();
+  final client = harness.endpoint.createHttpClient();
   try {
-    final request = await client.putUrl(harness.endpoint.httpUri(path));
+    final request = await client.putUrl(harness.endpoint.httpsUri(path));
     (headers ?? harness.authHeadersFor(phone)).forEach(request.headers.set);
     if (contentLength != null) request.contentLength = contentLength;
     request.add(bytes);
     final response = await request.close();
     await response.drain<void>();
     return response.statusCode;
+  } on IOException {
+    return _droppedConnection;
   } finally {
     client.close(force: true);
   }
 }
+
+/// The laptop may hang up on a refused upload before the rest of the body
+/// is sent, so the sender sees a dropped connection, not the status.
+const _droppedConnection = -1;
 
 /// Offers [offer] over a fresh control connection and waits until it lands.
 Future<void> _offer(
@@ -147,7 +153,14 @@ void main() {
     test('that grow past their declared size are discarded', () async {
       await _offer(harness, _offerFor('tiny'.codeUnits));
 
-      expect(await _put(harness, List.filled(64 * 1024, 7)), 422);
+      final ended = harness.receiver.events
+          .whereType<IncomingTransferEnded>()
+          .first;
+
+      final status = await _put(harness, List.filled(64 * 1024, 7));
+
+      expect(status, anyOf(422, _droppedConnection));
+      expect((await ended).reason, TransferFailure.corrupted);
       expect(harness.savedFiles(), isEmpty);
     });
 
@@ -172,7 +185,9 @@ void main() {
       await _offer(harness, _offerFor(bytes));
       final first = _put(harness, _bodyFor(bytes));
 
-      expect(await _put(harness, _bodyFor(bytes)), 409);
+      final second = await _put(harness, _bodyFor(bytes));
+
+      expect(second, anyOf(409, _droppedConnection));
       await first;
     });
 
@@ -218,6 +233,7 @@ void main() {
           await WebSocket.connect(
               harness.endpoint.webSocketUri('/v1/control').toString(),
               headers: harness.authHeadersFor(otherPhone),
+              customClient: harness.endpoint.createHttpClient(),
             )
             ..add(offerWithUnknownField);
 
@@ -244,6 +260,88 @@ void main() {
       final decision = await decisions;
       expect(decision.type, MessageType.reject);
       expect(decision.transferId, 'transfer_0000000003');
+    });
+
+    test(
+      'accepting everything still caps how many transfers stay open',
+      () async {
+        harness.acceptEveryOffer();
+        final connection = await harness.connect();
+        final rejections = connection.messages
+            .whereType<TransferDecisionMessage>()
+            .where((decision) => decision.type == MessageType.reject)
+            .first;
+        for (var i = 0; i < 9; i++) {
+          connection.send(
+            OfferMessage(
+              transferId: 'transfer_${'$i'.padLeft(10, '0')}',
+              files: _offerFor('x'.codeUnits).files,
+            ),
+          );
+          // Each offer is accepted before the next one arrives.
+          await pumpEventQueue();
+        }
+
+        expect((await rejections).transferId, 'transfer_0000000008');
+      },
+    );
+
+    test('an offer nobody answers is withdrawn', () async {
+      final harness = await TransferHarness.start(
+        offerLifetime: const Duration(milliseconds: 150),
+      );
+      final ended = harness.receiver.events
+          .whereType<IncomingTransferEnded>()
+          .first;
+      final connection = await harness.connect();
+      final withdrawal = connection.messages
+          .whereType<TransferDecisionMessage>()
+          .first;
+
+      connection.send(_offerFor('x'.codeUnits));
+
+      expect((await ended).reason, TransferFailure.timedOut);
+      expect((await withdrawal).type, MessageType.cancel);
+    });
+
+    test('an answered offer is not withdrawn later', () async {
+      final harness = await TransferHarness.start(
+        offerLifetime: const Duration(milliseconds: 150),
+      );
+      await _offer(harness, _offerFor('mine'.codeUnits));
+
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(await _put(harness, _bodyFor('mine'.codeUnits)), 204);
+    });
+
+    test('a revoked device loses the connection it already had', () async {
+      final connection = await harness.connect();
+      final other = await harness.connect(otherPhone);
+      final notes = harness.receiver.hub.messages.toList();
+
+      harness.receiver.hub.disconnect(phone.deviceId);
+      await connection.done.timeout(const Duration(seconds: 5));
+      connection.send(const TextContentMessage.text('still here?'));
+      await pumpEventQueue();
+
+      expect(harness.receiver.hub.isConnected(phone.deviceId), isFalse);
+      expect(other.isOpen, isTrue);
+      await harness.receiver.close();
+      expect(await notes, isEmpty);
+    });
+
+    test('a device that floods the channel is disconnected', () async {
+      final connection = await harness.connect();
+      final notes = harness.receiver.hub.messages.toList();
+
+      for (var i = 0; i <= maxControlMessagesPerWindow; i++) {
+        connection.send(const TextContentMessage.text('again'));
+      }
+      await connection.done.timeout(const Duration(seconds: 5));
+      await harness.receiver.close();
+
+      expect(await notes, hasLength(maxControlMessagesPerWindow));
     });
   });
 }

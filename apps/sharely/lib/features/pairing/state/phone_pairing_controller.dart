@@ -65,6 +65,7 @@ class PhonePairingController extends Notifier<PhonePairingState> {
       host: laptop.endpoint.host,
       port: laptop.endpoint.port,
       token: code,
+      certFingerprint: laptop.endpoint.certFingerprint,
       deviceId: laptop.hello.deviceId,
       deviceName: laptop.hello.deviceName,
     );

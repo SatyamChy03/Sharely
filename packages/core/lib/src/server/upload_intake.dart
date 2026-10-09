@@ -8,6 +8,7 @@ import 'package:sharely_core/src/server/request_authenticator.dart';
 import 'package:sharely_core/src/transfer/guarded_stream.dart';
 import 'package:sharely_core/src/transfer/incoming_file_writer.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer.dart';
+import 'package:sharely_core/src/transfer/parallel_settings.dart';
 import 'package:sharely_core/src/transfer/resume_settings.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/upload_checksum.dart';
@@ -54,8 +55,11 @@ class UploadIntake {
     final offset = int.tryParse(request.headers[resumeOffsetHeader] ?? '0');
     await transfer.settleUpload(fileIndex);
     final bytesHeld = transfer.partials[fileIndex]?.bytesWritten ?? 0;
+    if (transfer.activeUploads.length >= maxParallelFilesPerTransfer) {
+      return Response(HttpStatus.serviceUnavailable);
+    }
     if (transfer.isEnded ||
-        transfer.savedFileIndexes.contains(fileIndex) ||
+        transfer.savedFilesByIndex.containsKey(fileIndex) ||
         transfer.activeUploads.containsKey(fileIndex) ||
         offset != bytesHeld) {
       return Response(HttpStatus.conflict);
@@ -80,7 +84,7 @@ class UploadIntake {
     // A half-dead upload must let go first, or the answer could go stale.
     await transfer.settleUpload(fileIndex);
     if (transfer.isEnded) return Response.notFound(null);
-    final isSaved = transfer.savedFileIndexes.contains(fileIndex);
+    final isSaved = transfer.savedFilesByIndex.containsKey(fileIndex);
     final bytesHeld = isSaved
         ? transfer.offer.files[fileIndex].sizeBytes
         : transfer.partials[fileIndex]?.bytesWritten ?? 0;
@@ -134,8 +138,7 @@ class UploadIntake {
         return Response(HttpStatus.conflict);
       }
       transfer.partials.remove(fileIndex);
-      transfer.savedFileIndexes.add(fileIndex);
-      transfer.savedFiles.add(partial.file);
+      transfer.savedFilesByIndex[fileIndex] = partial.file;
     } on TransferInterrupted {
       return await _pauseAfterBrokenUpload(transfer, fileIndex);
     } on TransferException catch (error) {

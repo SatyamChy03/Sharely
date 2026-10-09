@@ -6,12 +6,18 @@ import 'package:sharely_core/src/discovery/locate_query.dart';
 import 'package:sharely_core/src/discovery/locate_reply.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 const _laptopId = 'laptop_0123456789ab';
 const _phoneId = 'phone_0123456789abc';
 const _authToken = 'auth_0123456789abcdef';
 const _fastLocator = Duration(milliseconds: 150);
 
-final _serverEndpoint = DeviceEndpoint.parse(host: '192.168.1.42', port: 5500);
+final _serverEndpoint = DeviceEndpoint.parse(
+  host: '192.168.1.42',
+  port: 5500,
+  certFingerprint: testIdentity.fingerprint,
+);
 
 PairedDevice _device(String deviceId, {String authToken = _authToken}) {
   return PairedDevice(
@@ -45,7 +51,10 @@ Future<DeviceEndpoint?> _locate(int port, {String localDeviceId = _phoneId}) {
     rounds: 2,
     roundTimeout: _fastLocator,
   ).locate(
-    laptop: _device(_laptopId),
+    // The phone knew the laptop at an older address.
+    laptop: _device(_laptopId).copyWith(
+      endpoint: _serverEndpoint.movedTo(InternetAddress('192.168.1.7'), 5500),
+    ),
     localDeviceId: localDeviceId,
     targets: [InternetAddress.loopbackIPv4],
   );
@@ -73,6 +82,87 @@ void main() {
     expect(await _locate(responder.port), _serverEndpoint);
   });
 
+  group('over multicast', () {
+    // Bound to every address, as the app does, so the group reaches it.
+    Future<DiscoveryResponder> startListeningToGroup() async {
+      final responder = await DiscoveryResponder.start(
+        localDeviceId: _laptopId,
+        serverEndpoint: _serverEndpoint,
+        findPairedDevice: (deviceId) =>
+            deviceId == _phoneId ? _device(_phoneId) : null,
+        port: 0,
+      );
+      addTearDown(responder.stop);
+      return responder;
+    }
+
+    Future<DeviceEndpoint?> askGroup(int port, {String from = _phoneId}) {
+      return LaptopLocator(
+        port: port,
+        rounds: 2,
+        roundTimeout: _fastLocator,
+      ).locate(
+        laptop: _device(_laptopId).copyWith(endpoint: _serverEndpoint),
+        localDeviceId: from,
+        targets: [discoveryMulticastGroup],
+        localAddresses: [InternetAddress.loopbackIPv4],
+      );
+    }
+
+    test(
+      'a paired phone finds the laptop without knowing any address',
+      () async {
+        final responder = await startListeningToGroup();
+
+        expect(await askGroup(responder.port), _serverEndpoint);
+      },
+    );
+
+    test('an unpaired device asking the group gets no answer', () async {
+      final responder = await startListeningToGroup();
+
+      final found = await askGroup(responder.port, from: 'stranger_0123456789');
+
+      expect(found, isNull);
+    });
+  });
+
+  test('the group is site-local, so questions stay on the network', () {
+    expect(discoveryMulticastGroup.rawAddress.take(2), [239, 255]);
+  });
+
+  test('each network is asked by group, broadcast and neighbour', () {
+    final destinations = discoveryDestinationsFrom(
+      InternetAddress('192.168.43.1'),
+    );
+
+    expect(destinations.first, discoveryMulticastGroup);
+    expect(destinations[1].address, '255.255.255.255');
+    expect(destinations, contains(InternetAddress('192.168.43.77')));
+    expect(destinations, isNot(contains(InternetAddress('192.168.43.1'))));
+  });
+
+  test('a network that just went away does not stop the others', () async {
+    final responder = await _startResponder();
+
+    final found =
+        await LaptopLocator(
+          port: responder.port,
+          rounds: 2,
+          roundTimeout: _fastLocator,
+        ).locate(
+          laptop: _device(_laptopId).copyWith(endpoint: _serverEndpoint),
+          localDeviceId: _phoneId,
+          targets: [InternetAddress.loopbackIPv4],
+          localAddresses: [
+            InternetAddress('10.255.255.254'),
+            InternetAddress.loopbackIPv4,
+          ],
+        );
+
+    expect(found, _serverEndpoint);
+  });
+
   test('an unpaired device gets no answer', () async {
     final responder = await _startResponder();
 
@@ -97,12 +187,14 @@ void main() {
       final genuine = LocateReply.signed(
         nonce: query.nonce,
         deviceId: _laptopId,
-        endpoint: _serverEndpoint,
+        host: _serverEndpoint.host,
+        port: _serverEndpoint.port,
         authToken: _authToken,
       );
       return LocateReply(
         deviceId: _laptopId,
-        endpoint: DeviceEndpoint.parse(host: '192.168.1.66', port: 5500),
+        host: InternetAddress('192.168.1.66'),
+        port: 5500,
         proof: genuine.proof,
       ).encode();
     });
@@ -115,7 +207,8 @@ void main() {
       (query) => LocateReply.signed(
         nonce: 'stale_nonce_0123456789',
         deviceId: _laptopId,
-        endpoint: _serverEndpoint,
+        host: _serverEndpoint.host,
+        port: _serverEndpoint.port,
         authToken: _authToken,
       ).encode(),
     );

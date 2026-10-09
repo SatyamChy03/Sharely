@@ -8,10 +8,15 @@ const _maxNameBytes = 240;
 const _maxExtensionChars = 16;
 
 final _pathSeparators = RegExp(r'[/\\]');
-final _forbiddenCharacters = RegExp(r'[<>:"|?*\x00-\x1F\x7F]');
+// Includes the C1 controls and the Unicode line breaks, which terminals
+// and file managers may act on or render as nothing.
+final _forbiddenCharacters = RegExp(
+  r'[<>:"|?*\x00-\x1F\x7F-\x9F\u2028\u2029]',
+  unicode: true,
+);
 // Bidi controls can disguise "gpj.exe" as "exe.jpg" in file managers.
 final _bidiControls = RegExp(
-  r'[\u200E\u200F\u202A-\u202E\u2066-\u2069]',
+  r'[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]',
   unicode: true,
 );
 final _edgeDotsAndSpaces = RegExp(r'^[.\s]+|[.\s]+$');

@@ -121,6 +121,37 @@ void main() {
       expect((await updates).last, isA<OutgoingTransferCompleted>());
     });
 
+    test('three files in flight all resume after one reconnect', () async {
+      final flaky = [for (var i = 0; i < 3; i++) _flakyFile(hangs: true)];
+      final connection = await harness.connect();
+      var reconnects = 0;
+      final transfer = OutgoingTransfer.start(
+        files: [for (final one in flaky) one.file],
+        connection: connection,
+        endpoint: harness.endpoint,
+        authHeaders: harness.authHeadersFor(phone),
+        reconnect: (timeout) {
+          reconnects++;
+          return _reconnectVia(harness)(timeout);
+        },
+        retryDelay: _retryDelay,
+      );
+      final updates = transfer.updates.toList();
+      await _untilPartlySent();
+
+      await connection.close();
+      await transfer.done;
+
+      final saved = harness.savedFiles();
+      expect(saved, hasLength(3));
+      for (final file in saved) {
+        expect(await file.readAsBytes(), _videoBytes);
+      }
+      expect(reconnects, 1);
+      final sent = (await updates).whereType<OutgoingTransferSending>();
+      expect(sent.last.bytesSent, transfer.totalBytes);
+    });
+
     test('a send survives losing the whole connection', () async {
       final flaky = _flakyFile(hangs: true);
       final connection = await harness.connect();
@@ -408,9 +439,9 @@ Future<ResumePointAnswer> _askOffset(
   String path,
   PairedDevice? device,
 ) async {
-  final client = HttpClient();
+  final client = harness.endpoint.createHttpClient();
   try {
-    final request = await client.getUrl(harness.endpoint.httpUri(path));
+    final request = await client.getUrl(harness.endpoint.httpsUri(path));
     if (device != null) {
       harness.authHeadersFor(device).forEach(request.headers.set);
     }
@@ -430,10 +461,10 @@ Future<int> _putFrom(
   List<int> bytes, {
   required int offset,
 }) async {
-  final client = HttpClient();
+  final client = harness.endpoint.createHttpClient();
   try {
     final request = await client.putUrl(
-      harness.endpoint.httpUri('/v1/transfers/$transferId/0'),
+      harness.endpoint.httpsUri('/v1/transfers/$transferId/0'),
     );
     harness.authHeadersFor(phone).forEach(request.headers.set);
     request.headers.set('x-sharely-offset', offset);

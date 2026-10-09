@@ -8,7 +8,9 @@ import 'package:sharely_core/src/protocol/protocol_limits.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
 
 const int maxStoredPairedDevices = 32;
-const _recordsVersion = 1;
+// 2: laptops carry the certificate fingerprint pinned at pairing. Version
+// 1 tokens travelled unencrypted, so those pairings are not carried over.
+const _recordsVersion = 2;
 
 // Year 2100: anything later means the record was tampered with or corrupted.
 const _maxPairedAtMillis = 4102444800000;
@@ -50,6 +52,7 @@ Map<String, Object?> _encodeDevice(PairedDevice device) => {
   if (device.endpoint case final endpoint?) ...{
     'host': endpoint.host.address,
     'port': endpoint.port,
+    'cert': endpoint.certFingerprint,
   },
 };
 
@@ -62,6 +65,7 @@ PairedDevice _decodeDevice(JsonFields fields) {
     'pairedAt',
     'host',
     'port',
+    'cert',
     'alwaysAccept',
   });
   final platform = DevicePlatform.fromWireName(
@@ -88,9 +92,11 @@ PairedDevice _decodeDevice(JsonFields fields) {
 }
 
 DeviceEndpoint? _decodeEndpoint(JsonFields fields) {
-  if (!fields.has('host') && !fields.has('port')) return null;
+  final hasAny = fields.has('host') || fields.has('port') || fields.has('cert');
+  if (!hasAny) return null;
   return DeviceEndpoint.parse(
     host: fields.string('host', maxLength: 15),
     port: fields.integer('port', min: 0, max: 65535),
+    certFingerprint: fields.string('cert', maxLength: 43),
   );
 }

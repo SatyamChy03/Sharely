@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:sharely_core/sharely_core.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 const _laptopHello = HelloMessage(
   deviceId: 'laptop_0123456789ab',
   deviceName: 'Laptop',
@@ -15,6 +17,7 @@ void main() {
     final sharely = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => session,
         localHello: _laptopHello,
@@ -45,6 +48,7 @@ void main() {
     final server = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => session,
         localHello: _laptopHello,
@@ -61,6 +65,7 @@ void main() {
         host: laptop.endpoint.host,
         port: laptop.endpoint.port,
         token: session.code,
+        certFingerprint: laptop.endpoint.certFingerprint,
         deviceId: laptop.hello.deviceId,
         deviceName: laptop.hello.deviceName,
       ),

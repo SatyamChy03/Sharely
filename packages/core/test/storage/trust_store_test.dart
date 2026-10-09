@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:sharely_core/sharely_core.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 const _pairedDevicesKey = 'sharely.pairedDevices';
 
 PairedDevice _phone({String deviceId = 'phone_0123456789abc'}) {
@@ -23,16 +25,29 @@ Map<String, Object?> _validRecord() => {
   'pairedAt': 1791000000000,
 };
 
-String _storedList(List<Object?> devices, {Object? version = 1}) =>
+String _storedList(List<Object?> devices, {Object? version = 2}) =>
     jsonEncode({'version': version, 'devices': devices});
 
 // Each entry is stored text that must be rejected rather than trusted.
 final _corruptedStores = <String, String>{
   'not JSON': '{oops',
   'a JSON list': '[]',
-  'an unknown version': _storedList([], version: 2),
+  'an unknown version': _storedList([], version: 3),
+  // Its tokens were sent unencrypted, so those pairings start over.
+  'the version from before TLS': _storedList([_validRecord()], version: 1),
+  'a laptop without a certificate fingerprint': _storedList([
+    {..._validRecord(), 'host': '192.168.1.24', 'port': 53891},
+  ]),
+  'a laptop with a malformed fingerprint': _storedList([
+    {
+      ..._validRecord(),
+      'host': '192.168.1.24',
+      'port': 53891,
+      'cert': 'not-a-fingerprint',
+    },
+  ]),
   'an extra top-level field': jsonEncode({
-    'version': 1,
+    'version': 2,
     'devices': <Object?>[],
     'admin': true,
   }),
@@ -119,7 +134,11 @@ void main() {
 
     test('keep a laptop endpoint for reconnecting', () async {
       final laptop = _phone().copyWith(
-        endpoint: DeviceEndpoint.parse(host: '192.168.1.24', port: 53891),
+        endpoint: DeviceEndpoint.parse(
+          host: '192.168.1.24',
+          port: 53891,
+          certFingerprint: testIdentity.fingerprint,
+        ),
       );
       await store.savePairedDevices([laptop]);
 

@@ -16,7 +16,10 @@ class OfferedTransfer {
 
   bool isAccepted = false;
   bool isEnded = false;
-  int bytesSent = 0;
+
+  /// Per file, because several are served at once and a resumed download
+  /// starts its file over from the byte the phone asked for.
+  final Map<int, int> bytesSentByFile = {};
 
   /// The newest download of each file in flight. A resumed download takes
   /// over its file, which tells the stuck one it replaced to stop.
@@ -28,8 +31,8 @@ class OfferedTransfer {
 
   int get totalBytes => files.fold(0, (sum, file) => sum + file.sizeBytes);
 
-  int bytesBefore(int fileIndex) =>
-      files.take(fileIndex).fold(0, (sum, file) => sum + file.sizeBytes);
+  int get bytesSent =>
+      bytesSentByFile.values.fold(0, (sum, bytes) => sum + bytes);
 
   bool isServing(int fileIndex, Object serve) =>
       !isEnded && identical(currentServes[fileIndex], serve);

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:sharely_core/sharely_core.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 const _authToken = 'auth_0123456789abcdef0123456789abcdef';
 
 final phone = PairedDevice(
@@ -33,19 +35,24 @@ class TransferHarness {
 
   Directory get saveDirectory => Directory('${workDirectory.path}/received');
 
-  DeviceEndpoint get endpoint =>
-      DeviceEndpoint(host: server.address, port: server.port);
+  DeviceEndpoint get endpoint => DeviceEndpoint(
+    host: server.address,
+    port: server.port,
+    certFingerprint: testIdentity.fingerprint,
+  );
 
   static Future<TransferHarness> start({
     Duration decisionTimeout = const Duration(seconds: 5),
     Duration resumeWindow = const Duration(seconds: 20),
     Duration dataIdleTimeout = defaultDataIdleTimeout,
+    Duration offerLifetime = const Duration(minutes: 5),
   }) async {
     final workDirectory = await Directory.systemTemp.createTemp('sharely_');
     final receiver = TransferReceiver(
       saveDirectory: () async => Directory('${workDirectory.path}/received'),
       resumeWindow: resumeWindow,
       dataIdleTimeout: dataIdleTimeout,
+      offerLifetime: offerLifetime,
     );
     final sender = TransferSender(
       hub: receiver.hub,
@@ -58,6 +65,7 @@ class TransferHarness {
     final server = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => null,
         localHello: const HelloMessage(

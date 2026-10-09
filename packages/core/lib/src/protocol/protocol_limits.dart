@@ -1,7 +1,8 @@
 /// Hard limits applied to every incoming message before it is trusted.
 abstract final class ProtocolLimits {
   // 2: file checksums moved from the offer to the end of each upload.
-  static const int protocolVersion = 2;
+  // 3: every connection is TLS, pinned to the laptop's certificate.
+  static const int protocolVersion = 3;
 
   static const int maxMessageChars = 256 * 1024;
   static const int maxFilesPerOffer = 1000;
