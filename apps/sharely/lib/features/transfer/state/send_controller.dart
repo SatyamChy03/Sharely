@@ -8,15 +8,15 @@ import 'package:sharely/features/transfer/state/background_send_notice.dart';
 import 'package:sharely/features/transfer/state/file_picking.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
+import 'package:sharely/features/transfer/state/laptop_reconnect.dart';
+import 'package:sharely/features/transfer/state/quick_text_result.dart';
 import 'package:sharely/features/transfer/state/recent_transfer.dart';
 import 'package:sharely/features/transfer/state/recent_transfers.dart';
 import 'package:sharely/features/transfer/state/send_state.dart';
+import 'package:sharely/features/transfer/state/speed_meter.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 final _log = Logger('Send');
-
-// Smooths the speed readout so it doesn't jitter between progress reports.
-const _speedSmoothing = 0.3;
 
 final sendProvider = NotifierProvider<SendController, SendState>(
   SendController.new,
@@ -25,9 +25,7 @@ final sendProvider = NotifierProvider<SendController, SendState>(
 /// Phone side: pick files, offer them to the laptop and track the send.
 class SendController extends Notifier<SendState> {
   OutgoingTransfer? _transfer;
-  final _sinceLastProgress = Stopwatch();
-  int _lastBytesSent = 0;
-  double _bytesPerSecond = 0;
+  final _speed = SpeedMeter();
 
   @override
   SendState build() {
@@ -58,6 +56,7 @@ class SendController extends Notifier<SendState> {
         localDeviceId: localHello.deviceId,
         authToken: connection.laptop.authToken,
       ),
+      reconnect: ref.read(laptopReconnectProvider),
     );
     final notice = BackgroundSendNotice(
       ref.read(backgroundTransferProvider),
@@ -71,6 +70,23 @@ class SendController extends Notifier<SendState> {
     return true;
   }
 
+  /// Sends a note, an OTP or a link straight to the laptop's screen.
+  QuickTextResult sendText(String raw) {
+    if (raw.trim().isEmpty) return QuickTextResult.empty;
+    final ProtocolMessage message;
+    try {
+      message = composeQuickText(raw);
+    } on ProtocolException {
+      return QuickTextResult.tooLong;
+    }
+    final connection = ref.read(laptopConnectionProvider);
+    if (connection is! LaptopConnected || !connection.connection.isOpen) {
+      return QuickTextResult.notConnected;
+    }
+    connection.connection.send(message);
+    return QuickTextResult.sent;
+  }
+
   void cancel() => _transfer?.cancel();
 
   /// Clears a finished send so the next one can start.
@@ -80,8 +96,7 @@ class SendController extends Notifier<SendState> {
 
   void _track(OutgoingTransfer transfer, BackgroundSendNotice notice) {
     _transfer = transfer;
-    _lastBytesSent = 0;
-    _bytesPerSecond = 0;
+    _speed.reset();
     final files = List<SendFileInfo>.unmodifiable([
       for (final file in transfer.files)
         (name: file.name, sizeBytes: file.sizeBytes),
@@ -98,6 +113,7 @@ class SendController extends Notifier<SendState> {
           bytesSent,
           notice,
         ),
+        OutgoingTransferReconnecting() => _showReconnecting(files, notice),
         OutgoingTransferCompleted() => _succeed(files),
         OutgoingTransferFailed(:final reason) => SendFailed(
           files: files,
@@ -112,12 +128,29 @@ class SendController extends Notifier<SendState> {
     int bytesSent,
     BackgroundSendNotice notice,
   ) {
-    final bytesPerSecond = _measureSpeed(bytesSent);
+    final bytesPerSecond = _speed.measure(bytesSent);
     notice.showProgress(bytesSent: bytesSent, bytesPerSecond: bytesPerSecond);
     return SendInProgress(
       files: files,
       bytesSent: bytesSent,
       bytesPerSecond: bytesPerSecond,
+    );
+  }
+
+  SendInProgress _showReconnecting(
+    List<SendFileInfo> files,
+    BackgroundSendNotice notice,
+  ) {
+    final current = state;
+    final bytesSent = current is SendInProgress ? current.bytesSent : 0;
+    // The speed before the drop says nothing about the speed after it.
+    _speed.reset();
+    notice.showReconnecting(bytesSent: bytesSent);
+    return SendInProgress(
+      files: files,
+      bytesSent: bytesSent,
+      bytesPerSecond: 0,
+      isReconnecting: true,
     );
   }
 
@@ -150,20 +183,5 @@ class SendController extends Notifier<SendState> {
         ),
     ]);
     return SendSucceeded(files: files);
-  }
-
-  double _measureSpeed(int bytesSent) {
-    final seconds = _sinceLastProgress.elapsedMicroseconds / 1e6;
-    if (_sinceLastProgress.isRunning && seconds > 0) {
-      final instant = (bytesSent - _lastBytesSent) / seconds;
-      _bytesPerSecond = _bytesPerSecond == 0
-          ? instant
-          : _bytesPerSecond + _speedSmoothing * (instant - _bytesPerSecond);
-    }
-    _lastBytesSent = bytesSent;
-    _sinceLastProgress
-      ..reset()
-      ..start();
-    return _bytesPerSecond;
   }
 }

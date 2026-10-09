@@ -59,7 +59,34 @@ String describeSendFailure(TransferFailure reason) => switch (reason) {
         'try again.',
   TransferFailure.unreadableFile =>
     "Couldn't read one of the files. Pick it again and resend.",
+  TransferFailure.tooManyFiles =>
+    'That is too many files for one go. Send up to 1,000 at a time.',
+  TransferFailure.noFiles => 'There was nothing to send. Pick a file first.',
 };
+
+/// What went wrong sending to the phone, with the one thing to try next.
+String describePhoneSendFailure(TransferFailure reason, String phoneName) =>
+    switch (reason) {
+      TransferFailure.rejected => '$phoneName declined the files.',
+      TransferFailure.cancelled => 'The transfer was cancelled.',
+      TransferFailure.unreachable =>
+        "$phoneName isn't connected. Open Sharely on it, on the same Wi-Fi, "
+            'then send again.',
+      TransferFailure.timedOut =>
+        'Nobody accepted on $phoneName. Open Sharely there, then send again.',
+      TransferFailure.corrupted =>
+        "A file didn't arrive intact. Send it again.",
+      TransferFailure.refused =>
+        "$phoneName couldn't save the files. Check it has free space, then "
+            'send again.',
+      TransferFailure.unreadableFile =>
+        "Couldn't read one of the files. Check it still exists, then send "
+            'again.',
+      TransferFailure.tooManyFiles =>
+        'That is too many files for one go. Send up to 1,000 at a time.',
+      TransferFailure.noFiles =>
+        'That folder has no files in it. Choose another one.',
+    };
 
 /// What went wrong for the receiver, with the one thing to try next.
 String describeReceiveFailure(TransferFailure reason, String senderName) =>
@@ -74,5 +101,7 @@ String describeReceiveFailure(TransferFailure reason, String senderName) =>
         "Couldn't save the files. Check there is free space in Downloads.",
       TransferFailure.rejected ||
       TransferFailure.timedOut ||
-      TransferFailure.unreadableFile => 'The transfer stopped early.',
+      TransferFailure.unreadableFile ||
+      TransferFailure.tooManyFiles ||
+      TransferFailure.noFiles => 'The transfer stopped early.',
     };

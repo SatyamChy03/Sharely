@@ -15,6 +15,7 @@ import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely/features/transfer/state/send_controller.dart';
 import 'package:sharely/features/transfer/state/send_state.dart';
 import 'package:sharely/features/transfer/state/transfer_receiver_provider.dart';
+import 'package:sharely/features/transfer/state/transfer_sender_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 const _authToken = 'auth_0123456789abcdef0123456789abcdef';
@@ -98,6 +99,7 @@ void main() {
       ),
       transfers: (
         receiver: laptop.read(transferReceiverProvider),
+        sender: laptop.read(transferSenderProvider),
         findPairedDevice: (deviceId) =>
             deviceId == phoneRecord.deviceId ? phoneRecord : null,
       ),

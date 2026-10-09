@@ -118,6 +118,11 @@ class _Summary extends StatelessWidget {
         formatByteCount(view.totalBytes),
         true,
       ),
+      IncomingTransferStage.receiving when view.isReconnecting => (
+        'Waiting for ${view.senderName} to reconnect',
+        'It continues by itself when the Wi-Fi is back.',
+        false,
+      ),
       IncomingTransferStage.receiving => (
         'Receiving from ${view.senderName}',
         '${formatByteCount(view.bytesReceived)} of '

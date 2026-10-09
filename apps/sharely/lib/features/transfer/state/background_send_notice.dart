@@ -52,6 +52,19 @@ class BackgroundSendNotice {
     );
   }
 
+  /// Says the send is waiting for the connection, not stuck or lost.
+  void showReconnecting({required int bytesSent}) {
+    _sinceLastUpdate.reset();
+    final percent = totalBytes == 0 ? 100 : bytesSent * 100 ~/ totalBytes;
+    unawaited(
+      _background.update(
+        title: 'Reconnecting to $laptopName…',
+        text: 'The send continues by itself when the Wi-Fi is back.',
+        percent: percent,
+      ),
+    );
+  }
+
   /// [failure] is null when every file arrived.
   Future<void> end(TransferFailure? failure) {
     if (failure == null) {

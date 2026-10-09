@@ -5,8 +5,9 @@ import 'package:sharely/design/tokens.dart';
 class QuickTextBar extends StatefulWidget {
   const new({required this.onSend, super.key});
 
-  /// Null while sending text to the phone isn't available.
-  final ValueChanged<String>? onSend;
+  /// Returns whether the text went out, which clears the field. Null while
+  /// the phone isn't connected.
+  final bool Function(String text)? onSend;
 
   @override
   State<QuickTextBar> createState() => _QuickTextBarState();
@@ -19,6 +20,11 @@ class _QuickTextBarState extends State<QuickTextBar> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _send() {
+    final wasSent = widget.onSend?.call(_controller.text) ?? false;
+    if (wasSent) _controller.clear();
   }
 
   @override
@@ -37,6 +43,7 @@ class _QuickTextBarState extends State<QuickTextBar> {
             child: TextField(
               controller: _controller,
               enabled: onSend != null,
+              onSubmitted: (_) => _send(),
               decoration: const InputDecoration(
                 hintText: 'Paste a link, a note or an OTP…',
                 border: InputBorder.none,
@@ -46,7 +53,7 @@ class _QuickTextBarState extends State<QuickTextBar> {
             ),
           ),
           FilledButton(
-            onPressed: onSend == null ? null : () => onSend(_controller.text),
+            onPressed: onSend == null ? null : _send,
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 44),
               padding: const EdgeInsets.symmetric(horizontal: 18),

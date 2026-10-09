@@ -7,6 +7,7 @@ import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/transfer_receiver_provider.dart';
+import 'package:sharely/features/transfer/state/transfer_sender_provider.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 final _log = Logger('LaptopPairing');
@@ -59,6 +60,7 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
       ),
       transfers: (
         receiver: ref.read(transferReceiverProvider),
+        sender: ref.read(transferSenderProvider),
         findPairedDevice: _findPairedDevice,
       ),
     );

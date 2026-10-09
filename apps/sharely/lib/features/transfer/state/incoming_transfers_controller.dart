@@ -87,8 +87,13 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
       case IncomingTransferProgressed(:final transferId, :final bytesReceived):
         _update(
           transferId,
-          (view) => view.copyWith(bytesReceived: bytesReceived),
+          (view) => view.copyWith(
+            bytesReceived: bytesReceived,
+            isReconnecting: false,
+          ),
         );
+      case IncomingTransferInterrupted(:final transferId):
+        _update(transferId, (view) => view.copyWith(isReconnecting: true));
       case IncomingTransferCompleted(:final transferId, :final savedFiles):
         ref.read(hasReceivedFileProvider.notifier).markReceived();
         _recordReceived(transferId, savedFiles);

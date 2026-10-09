@@ -14,6 +14,7 @@ object SharelyEngine {
         if (cache.contains(ID)) return
         val engine = FlutterEngine(context)
         BackgroundTransferChannel.attach(context, engine.dartExecutor.binaryMessenger)
+        StorageChannel.attach(engine.dartExecutor.binaryMessenger)
         engine.dartExecutor.executeDartEntrypoint(
             DartExecutor.DartEntrypoint.createDefault(),
         )
@@ -25,6 +26,7 @@ object SharelyEngine {
         val engine = cache.get(ID) ?: return
         cache.remove(ID)
         BackgroundTransferChannel.detach()
+        StorageChannel.detach()
         engine.destroy()
     }
 }

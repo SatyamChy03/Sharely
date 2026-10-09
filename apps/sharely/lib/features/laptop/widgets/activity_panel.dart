@@ -39,7 +39,7 @@ class ActivityPanel extends ConsumerWidget {
           ),
           if (recent.isEmpty)
             Text(
-              'Nothing yet. Files from your phone show up here.',
+              'Nothing yet. Files you send or receive show up here.',
               style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
             ),
           ActivityDayGroups(transfers: recent.take(_shownOnHome).toList()),

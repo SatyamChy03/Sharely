@@ -11,12 +11,13 @@ const int _chunkBytes = 1 << 20;
 const _chunksInFlight = 4;
 
 const _eintr = 4;
+const _seekFromStart = 0;
 
 /// Streams the bytes behind [fd], an Android descriptor from the picker.
 ///
 /// Reads block, and a cloud document can block for a long time, so they run
-/// on their own isolate instead of stalling the UI. Single use: the
-/// descriptor's position moves as it is read.
+/// on their own isolate instead of stalling the UI. Every call starts from
+/// the first byte again, which is what resuming a broken send needs.
 Stream<Uint8List> readFileDescriptor(int fd) async* {
   final replies = ReceivePort();
   final iterator = StreamIterator<Object?>(replies);
@@ -57,6 +58,7 @@ void closeFileDescriptor(int fd) => _Libc.instance.close(fd);
 
 typedef _Read = int Function(int fd, Pointer<Uint8> buffer, int count);
 typedef _Close = int Function(int fd);
+typedef _Seek = int Function(int fd, int offset, int whence);
 typedef _Malloc = Pointer<Uint8> Function(int bytes);
 typedef _Free = void Function(Pointer<Uint8> buffer);
 typedef _ErrnoLocation = Pointer<Int32> Function();
@@ -78,6 +80,9 @@ final class _Libc {
       );
   late final _Close close = _library
       .lookupFunction<Int32 Function(Int32), _Close>('close');
+  // The 64-bit variant: plain lseek takes a 32-bit offset on 32-bit phones.
+  late final _Seek seek = _library
+      .lookupFunction<Int64 Function(Int32, Int64, Int32), _Seek>('lseek64');
   late final _Malloc malloc = _library
       .lookupFunction<Pointer<Uint8> Function(Size), _Malloc>('malloc');
   late final _Free free = _library
@@ -95,6 +100,9 @@ void _serveChunks(({int fd, SendPort replies}) job) {
   final libc = _Libc.instance;
   final requests = ReceivePort();
   Pointer<Uint8>? allocated;
+  // Rewinds for a repeat read. A source that can't seek fails here on its
+  // first read too, harmlessly: it is still at its start then.
+  libc.seek(job.fd, 0, _seekFromStart);
   job.replies.send(requests.sendPort);
 
   void finish(Object? lastReply) {

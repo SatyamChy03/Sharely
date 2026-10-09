@@ -19,6 +19,7 @@ final class IncomingTransferView {
     this.bytesReceived = 0,
     this.savedFiles = const [],
     this.failure,
+    this.isReconnecting = false,
   });
 
   final String transferId;
@@ -32,6 +33,10 @@ final class IncomingTransferView {
   final List<File> savedFiles;
   final TransferFailure? failure;
 
+  /// The connection dropped; the transfer continues by itself when it is
+  /// back.
+  final bool isReconnecting;
+
   double get fraction => totalBytes == 0 ? 1 : bytesReceived / totalBytes;
 
   IncomingTransferView copyWith({
@@ -39,6 +44,7 @@ final class IncomingTransferView {
     int? bytesReceived,
     List<File>? savedFiles,
     TransferFailure? failure,
+    bool? isReconnecting,
   }) {
     return IncomingTransferView(
       transferId: transferId,
@@ -51,6 +57,7 @@ final class IncomingTransferView {
       bytesReceived: bytesReceived ?? this.bytesReceived,
       savedFiles: savedFiles ?? this.savedFiles,
       failure: failure ?? this.failure,
+      isReconnecting: isReconnecting ?? this.isReconnecting,
     );
   }
 }

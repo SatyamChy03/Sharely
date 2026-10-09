@@ -11,6 +11,12 @@ final sendFilePickerProvider = Provider<SendFilePicker>(
   (ref) => SendFilePicker(),
 );
 
+/// The system folder picker; null when the user backs out. Overridden in
+/// tests, which have no picker.
+final folderPickerProvider = Provider<Future<String?> Function()>(
+  (ref) => FilePicker.getDirectoryPath,
+);
+
 /// Picks files to send and lets go of them once the send is over.
 class SendFilePicker {
   final _openDescriptors = <int>{};
