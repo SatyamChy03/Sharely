@@ -4,6 +4,7 @@ abstract final class AppRoutes {
   static const typeCode = '/pair/code';
   static const connected = '/pair/connected';
   static const home = '/home';
+  static const laptopWelcome = '/laptop/welcome';
   static const laptopPairing = '/laptop/pair';
   static const laptopHome = '/laptop/home';
   static const sending = '/send';
