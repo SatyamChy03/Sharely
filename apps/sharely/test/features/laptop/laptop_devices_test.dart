@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
+import 'package:sharely/app/routes.dart';
 import 'package:sharely/features/laptop/laptop_devices_view.dart';
 import 'package:sharely/features/laptop/laptop_home_screen.dart';
+import 'package:sharely/features/pairing/laptop_pairing_screen.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
@@ -66,24 +69,43 @@ class _NoIncoming extends IncomingTransfersController {
   List<IncomingTransferView> build() => const [];
 }
 
-Future<void> _openDevices(WidgetTester tester) async {
+Future<ProviderContainer> _openDevices(WidgetTester tester) async {
   tester.view.physicalSize = const Size(1280, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  final container = ProviderContainer(
+    overrides: [
+      laptopPairingProvider.overrideWith(_FakeLaptopPairing.new),
+      pairedDevicesProvider.overrideWith(_TwoPairedDevices.new),
+      connectedPhonesProvider.overrideWith(_OnlyEdgeConnected.new),
+      incomingTransfersProvider.overrideWith(_NoIncoming.new),
+    ],
+  );
+  addTearDown(container.dispose);
+  final router = GoRouter(
+    initialLocation: AppRoutes.laptopHome,
+    routes: [
+      GoRoute(
+        path: AppRoutes.laptopHome,
+        builder: (context, state) => const LaptopHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.laptopPairing,
+        builder: (context, state) => const LaptopPairingScreen(),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        laptopPairingProvider.overrideWith(_FakeLaptopPairing.new),
-        pairedDevicesProvider.overrideWith(_TwoPairedDevices.new),
-        connectedPhonesProvider.overrideWith(_OnlyEdgeConnected.new),
-        incomingTransfersProvider.overrideWith(_NoIncoming.new),
-      ],
-      child: const MaterialApp(home: LaptopHomeScreen()),
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pump(const Duration(milliseconds: 400));
-  await tester.tap(find.byTooltip('Devices'));
+  await tester.tap(find.text('Devices'));
   await tester.pump(const Duration(milliseconds: 400));
+  return container;
 }
 
 void main() {
@@ -91,39 +113,48 @@ void main() {
     await _openDevices(tester);
 
     expect(find.byType(LaptopDevicesView), findsOneWidget);
-    expect(find.text('1 of 2 connected'), findsOneWidget);
+    expect(find.text('1 of 2 paired devices connected.'), findsOneWidget);
     expect(find.text('Motorola Edge'), findsOneWidget);
     expect(find.text('Pixel 9'), findsOneWidget);
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('Not connected'), findsOneWidget);
+    // The sidebar follows the phone in use, which is the offline one.
+    expect(find.text('Offline'), findsNWidgets(2));
     expect(find.byType(PrettyQrView), findsNothing);
   });
 
-  testWidgets('Pair a new device shows the QR code until cancelled', (
+  testWidgets('Add device shows a fresh code, and closing takes it down', (
     tester,
   ) async {
-    await _openDevices(tester);
+    final container = await _openDevices(tester);
 
-    await tester.tap(find.text('Pair a new device').last);
+    await tester.tap(find.text('Add device'));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(PrettyQrView), findsOneWidget);
     expect(find.text('482 913'), findsOneWidget);
 
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.byTooltip('Back to Home'));
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(PrettyQrView), findsNothing);
+    // A code must not stay redeemable once its QR is hidden.
+    expect(
+      container.read(laptopPairingProvider).value,
+      isA<LaptopPairedWithPhone>(),
+    );
   });
 
-  testWidgets('leaving Devices takes the QR code down', (tester) async {
+  testWidgets('removing a device asks first and keeps it on "Keep"', (
+    tester,
+  ) async {
     await _openDevices(tester);
-    await tester.tap(find.text('Pair a new device').last);
-    await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.tap(find.byTooltip('Home'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.byTooltip('Devices'));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Remove').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Remove Pixel 9?'), findsOneWidget);
 
-    expect(find.byType(PrettyQrView), findsNothing);
+    await tester.tap(find.text('Keep'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pixel 9'), findsOneWidget);
   });
 }

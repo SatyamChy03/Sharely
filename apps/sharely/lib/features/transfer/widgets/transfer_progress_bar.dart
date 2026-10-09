@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:sharely/design/tokens.dart';
 
-/// Rounded progress bar for transfers, for light or dark surfaces.
+/// Rounded progress bar for transfers; grey while the transfer is stalled.
 class TransferProgressBar extends StatelessWidget {
-  const new({required this.fraction, super.key, this.isOnDark = true});
+  const new({
+    required this.fraction,
+    super.key,
+    this.height = 4,
+    this.isStalled = false,
+  });
 
   final double fraction;
-  final bool isOnDark;
+  final double height;
+  final bool isStalled;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: const BorderRadius.all(SharelyRadii.chip),
+      borderRadius: const BorderRadius.all(SharelyRadii.pill),
       child: TweenAnimationBuilder<double>(
         tween: Tween(end: fraction.clamp(0, 1)),
         duration: SharelyMotion.fast,
         builder: (context, value, _) => LinearProgressIndicator(
           value: value,
-          minHeight: 8,
-          backgroundColor: isOnDark
-              ? SharelyColors.inkBorderStrong
-              : SharelyColors.mist,
-          color: isOnDark ? SharelyColors.accentOnInk : SharelyColors.accent,
+          minHeight: height,
+          backgroundColor: SharelyColors.elevated,
+          color: isStalled ? SharelyColors.stalled : SharelyColors.primary,
         ),
       ),
     );

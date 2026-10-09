@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/icon_tile.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
 
-/// White card for the laptop's non-QR states: paired, offline, loading.
+/// Laptop pairing when there is no code to show: offline, error, loading.
 class LaptopStatusCard extends StatelessWidget {
   const new({
     required this.title,
@@ -26,40 +27,50 @@ class LaptopStatusCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final label = actionLabel;
     final statusIcon = icon;
-    return Container(
-      padding: const EdgeInsets.all(SharelySpacing.xxl),
-      decoration: const BoxDecoration(
-        color: SharelyColors.surface,
-        borderRadius: BorderRadius.all(SharelyRadii.panel),
-      ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 460),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (statusIcon == null)
-            const CircularProgressIndicator(color: SharelyColors.accent)
+            const SizedBox.square(
+              dimension: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: SharelyColors.primary,
+                backgroundColor: SharelyColors.lineStrong,
+              ),
+            )
           else
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: SharelyColors.ink,
-              child: Icon(statusIcon, color: SharelyColors.accentOnInk),
+            IconTile(
+              icon: statusIcon,
+              size: 72,
+              radius: SharelyRadii.zone,
+              color: SharelyColors.dangerText,
+              background: SharelyColors.dangerTint,
+              borderColor: SharelyColors.dangerLine,
             ),
-          const Gap(SharelySpacing.lg),
+          const Gap(SharelySpacing.xl),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: textTheme.headlineMedium?.copyWith(color: SharelyColors.ink),
+            style: textTheme.headlineLarge,
           ),
           const Gap(SharelySpacing.sm),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
+            style: textTheme.bodyLarge?.copyWith(
+              color: SharelyColors.textSecondary,
+            ),
           ),
           if (label != null) ...[
             const Gap(SharelySpacing.xl),
             SharelyButton(
               label: label,
-              variant: SharelyButtonVariant.ink,
+              leadingIcon: LucideIcons.refreshCw,
+              height: SharelySizes.buttonMedium,
+              isExpanded: false,
               onPressed: onAction,
             ),
           ],
@@ -68,7 +79,6 @@ class LaptopStatusCard extends StatelessWidget {
     );
   }
 
-  static const IconData pairedIcon = LucideIcons.check;
   static const IconData offlineIcon = LucideIcons.wifiOff;
   static const IconData errorIcon = LucideIcons.circleAlert;
 }

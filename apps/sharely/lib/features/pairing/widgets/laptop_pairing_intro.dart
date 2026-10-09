@@ -2,99 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
+import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
+import 'package:sharely/features/pairing/widgets/pairing_code_card.dart';
 
-/// Left column of the laptop get-started screen: promise and three steps.
+/// Left column of laptop pairing (D02): what to do, then the typed code.
 class LaptopPairingIntro extends StatelessWidget {
-  const new({required this.isPaired, this.hasReceivedFile = false, super.key});
+  const new({required this.waiting, super.key});
 
-  final bool isPaired;
-  final bool hasReceivedFile;
+  final LaptopWaitingForPhone waiting;
+
+  static const _steps = [
+    'Open Sharely on your phone',
+    'Tap “Get started”, or “Add device”',
+    'Point the camera at this code',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Your phone is\none scan away.', style: textTheme.displayLarge),
-        const Gap(SharelySpacing.xl),
+        Text('Pair your phone', style: textTheme.displaySmall),
+        const Gap(10),
         Text(
-          'Pair once, then drop anything on this window and it lands on '
-          'your phone. No cable, no cloud, no account.',
-          style: textTheme.bodyLarge?.copyWith(color: SharelyColors.onInkSoft),
+          'Open Sharely on your phone and scan this code.',
+          style: textTheme.bodyLarge?.copyWith(
+            color: SharelyColors.textSecondary,
+          ),
         ),
-        const Gap(SharelySpacing.xl),
-        _Step(
-          number: '01',
-          label: 'Install Sharely on your phone',
-          isDone: isPaired,
-        ),
-        _Step(
-          number: '02',
-          label: 'Scan the code with the app',
-          isCurrent: !isPaired,
-          isDone: isPaired,
-        ),
-        _Step(
-          number: '03',
-          label: 'Send a test photo',
-          isCurrent: isPaired && !hasReceivedFile,
-          isDone: hasReceivedFile,
-        ),
+        const Gap(28),
+        for (final (index, step) in _steps.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _NumberedStep(number: index + 1, label: step),
+          ),
+        const Gap(14),
+        PairingCodeCard(waiting: waiting),
       ],
     );
   }
 }
 
-class _Step extends StatelessWidget {
-  const new({
-    required this.number,
-    required this.label,
-    this.isCurrent = false,
-    this.isDone = false,
-  });
+class _NumberedStep extends StatelessWidget {
+  const new({required this.number, required this.label});
 
-  final String number;
+  final int number;
   final String label;
-  final bool isCurrent;
-  final bool isDone;
 
   @override
   Widget build(BuildContext context) {
-    final emphasis = isCurrent || isDone;
-    final labelStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-      color: emphasis ? SharelyColors.surface : SharelyColors.onInkMuted,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: SharelySpacing.md),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: SharelyColors.inkBorder)),
-      ),
-      child: Row(
-        spacing: SharelySpacing.lg,
-        children: [
-          Text(
-            number,
-            style: sharelyMonoStyle(
-              size: 14,
-              color: isCurrent
-                  ? SharelyColors.accentOnInk
-                  : SharelyColors.onInkMuted,
-            ),
+    return Row(
+      spacing: 14,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(SharelyRadii.row),
+            border: Border.all(color: SharelyColors.lineStrong),
           ),
-          Expanded(child: Text(label, style: labelStyle)),
-          if (isCurrent || isDone)
-            Text(
-              isDone ? 'Done' : 'Now',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: isDone
-                    ? SharelyColors.accentOnInk
-                    : SharelyColors.onInkMuted,
-              ),
-            ),
-        ],
-      ),
+          child: Text(
+            '$number',
+            style: sharelyMonoStyle(size: 13, color: SharelyColors.primary),
+          ),
+        ),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
     );
   }
 }

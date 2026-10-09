@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
-import 'package:sharely/design/widgets/sharely_logo.dart';
+import 'package:sharely/design/widgets/icon_tile.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
 import 'package:sharely/features/transfer/state/incoming_transfers_controller.dart';
 import 'package:sharely/features/transfer/transfer_formatting.dart';
-import 'package:sharely/features/transfer/widgets/incoming_file_chips.dart';
 import 'package:sharely/features/transfer/widgets/incoming_offer_actions.dart';
 import 'package:sharely/features/transfer/widgets/incoming_result_actions.dart';
+import 'package:sharely/features/transfer/widgets/offer_file_rows.dart';
 import 'package:sharely/features/transfer/widgets/transfer_progress_bar.dart';
 import 'package:sharely_core/sharely_core.dart';
 
-/// Laptop notification for one incoming transfer, near the tray.
+/// Laptop notification for one incoming transfer, near the tray (D12).
 class IncomingTransferCard extends ConsumerWidget {
   const new({required this.view, super.key});
 
   final IncomingTransferView view;
 
-  static const maxWidth = 420.0;
+  static const maxWidth = 380.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,42 +33,39 @@ class IncomingTransferCard extends ConsumerWidget {
         constraints: const BoxConstraints(maxWidth: maxWidth),
         // Material, not a decorated box, so the checkbox's ink shows.
         child: Material(
-          color: SharelyColors.ink,
-          elevation: 12,
-          shadowColor: SharelyColors.ink.withValues(alpha: 0.4),
+          color: SharelyColors.elevated,
+          elevation: 6,
+          shadowColor: SharelyColors.shadow,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(26)),
-            // Keeps the card distinct on the dark get-started screen.
-            side: BorderSide(color: SharelyColors.inkBorderStrong),
+            borderRadius: BorderRadius.all(SharelyRadii.tile),
+            side: BorderSide(color: SharelyColors.lineHover),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 16,
+              spacing: SharelySpacing.md,
               children: [
-                const _AppHeader(),
+                _AppHeader(
+                  onClose: view.stage == IncomingTransferStage.offered
+                      ? null
+                      : () => controller.dismiss(transferId),
+                ),
                 _Summary(view: view),
                 if (view.stage == IncomingTransferStage.offered)
-                  IncomingFileChips(fileNames: view.fileNames),
+                  OfferFileRows(
+                    fileNames: view.fileNames,
+                    fileSizes: view.fileSizes,
+                    totalBytes: view.totalBytes,
+                    isCompact: true,
+                  ),
                 if (view.stage == IncomingTransferStage.receiving)
-                  TransferProgressBar(fraction: view.fraction),
-                switch (view.stage) {
-                  IncomingTransferStage.offered => IncomingOfferActions(
-                    onAccept: (always) =>
-                        controller.accept(transferId, alwaysFromSender: always),
-                    onDecline: () => controller.decline(transferId),
+                  TransferProgressBar(
+                    fraction: view.fraction,
+                    height: 6,
+                    isStalled: view.isReconnecting,
                   ),
-                  IncomingTransferStage.receiving => NotificationButton(
-                    label: 'Cancel',
-                    onPressed: () => controller.cancel(transferId),
-                  ),
-                  IncomingTransferStage.saved ||
-                  IncomingTransferStage.failed => IncomingResultActions(
-                    savedFiles: view.savedFiles,
-                    onDismiss: () => controller.dismiss(transferId),
-                  ),
-                },
+                _buildActions(controller),
               ],
             ),
           ),
@@ -74,31 +73,61 @@ class IncomingTransferCard extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildActions(IncomingTransfersController controller) {
+    final transferId = view.transferId;
+    return switch (view.stage) {
+      IncomingTransferStage.offered => IncomingOfferActions(
+        onAccept: (always) =>
+            controller.accept(transferId, alwaysFromSender: always),
+        onDecline: () => controller.decline(transferId),
+      ),
+      IncomingTransferStage.receiving => SharelyButton(
+        label: 'Cancel',
+        variant: SharelyButtonVariant.danger,
+        height: 40,
+        onPressed: () => controller.cancel(transferId),
+      ),
+      IncomingTransferStage.saved ||
+      IncomingTransferStage.failed => IncomingResultActions(
+        savedFiles: view.savedFiles,
+        onDismiss: () => controller.dismiss(transferId),
+      ),
+    };
+  }
 }
 
 class _AppHeader extends StatelessWidget {
-  const new();
+  const new({required this.onClose});
+
+  /// Null while the offer still needs an answer.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Row(
-      spacing: 10,
       children: [
-        const SharelyLogoMark(size: 22),
         Expanded(
           child: Text(
-            'Sharely',
-            style: textTheme.labelMedium?.copyWith(
-              color: SharelyColors.surface,
-              fontSize: 13,
-            ),
+            'Sharely · now',
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
         ),
-        Text(
-          'now',
-          style: textTheme.bodySmall?.copyWith(color: SharelyColors.onInkMuted),
-        ),
+        if (onClose != null)
+          SizedBox.square(
+            dimension: 28,
+            child: IconButton(
+              onPressed: onClose,
+              tooltip: 'Close',
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                LucideIcons.x,
+                size: 14,
+                color: SharelyColors.textSecondary,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -111,12 +140,55 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (title, detail, isDetailMono) = switch (view.stage) {
+    final (title, detail, isDetailMono) = _describe();
+    final textTheme = Theme.of(context).textTheme;
+    final (icon, color) = switch (view.stage) {
+      IncomingTransferStage.saved => (LucideIcons.check, SharelyColors.success),
+      IncomingTransferStage.failed => (
+        LucideIcons.circleAlert,
+        SharelyColors.dangerText,
+      ),
+      _ => (LucideIcons.smartphone, SharelyColors.primary),
+    };
+    return Row(
+      spacing: SharelySpacing.md,
+      children: [
+        IconTile(
+          icon: icon,
+          size: 40,
+          color: color,
+          background: SharelyColors.background,
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 1,
+            children: [
+              Text(title, style: textTheme.titleSmall),
+              Text(
+                detail,
+                style: isDetailMono
+                    ? sharelyMonoStyle(
+                        size: 12,
+                        color: SharelyColors.textSecondary,
+                      )
+                    : textTheme.bodySmall?.copyWith(
+                        color: SharelyColors.textSecondary,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  (String title, String detail, bool isDetailMono) _describe() {
+    return switch (view.stage) {
       IncomingTransferStage.offered => (
-        '${view.senderName} is sending '
-            '${formatFileCount(view.fileNames.length)}',
-        formatByteCount(view.totalBytes),
-        true,
+        view.senderName,
+        'wants to send ${formatFileCount(view.fileNames.length)}',
+        false,
       ),
       IncomingTransferStage.receiving when view.isReconnecting => (
         'Waiting for ${view.senderName} to reconnect',
@@ -143,27 +215,5 @@ class _Summary extends StatelessWidget {
         false,
       ),
     };
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
-      children: [
-        Text(
-          title,
-          style: textTheme.titleLarge?.copyWith(
-            color: SharelyColors.surface,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
-          ),
-        ),
-        Text(
-          detail,
-          style: isDetailMono
-              ? sharelyMonoStyle(size: 13, color: SharelyColors.onInkQuiet)
-              : textTheme.bodyMedium?.copyWith(color: SharelyColors.onInkQuiet),
-        ),
-      ],
-    );
   }
 }

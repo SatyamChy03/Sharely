@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sharely/design/tokens.dart';
+import 'package:sharely/features/home/activity_tab.dart';
 import 'package:sharely/features/home/devices_tab.dart';
-import 'package:sharely/features/home/history_tab.dart';
 import 'package:sharely/features/home/home_tab.dart';
-import 'package:sharely/features/home/widgets/pill_nav.dart';
+import 'package:sharely/features/home/send_tab.dart';
+import 'package:sharely/features/home/settings_tab.dart';
+import 'package:sharely/features/home/widgets/phone_tab_bar.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_controller.dart';
 import 'package:sharely/features/transfer/widgets/laptop_offers_overlay.dart';
 
-/// Phone home shell: Home, History and Devices under one floating nav.
+/// Phone shell: five sections over one bottom tab bar.
 class HomeScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -39,33 +40,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            IndexedStack(
+    // The offer sheet sits over the tab bar too, so nothing else is tappable.
+    return Stack(
+      children: [
+        Scaffold(
+          bottomNavigationBar: PhoneTabBar(current: _tab, onSelected: _showTab),
+          body: SafeArea(
+            bottom: false,
+            child: IndexedStack(
               index: _tab.index,
               children: [
-                HomeTabView(
-                  onSeeAll: () => _showTab(HomeTab.history),
-                  onSettings: () => _showTab(HomeTab.devices),
-                ),
-                const HistoryTabView(),
+                HomeTabView(onShowTab: _showTab),
+                const SendTabView(),
+                const ActivityTabView(),
                 const DevicesTabView(),
+                const SettingsTabView(),
               ],
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: SharelySpacing.lg + 4,
-              child: Center(
-                child: PillNav(current: _tab, onSelected: _showTab),
-              ),
-            ),
-            const Positioned.fill(child: LaptopOffersOverlay()),
-          ],
+          ),
         ),
-      ),
+        const Positioned.fill(child: LaptopOffersOverlay()),
+      ],
     );
   }
 }

@@ -1,31 +1,39 @@
 import 'package:flutter/material.dart';
 
-/// Colour tokens from the locked v2 design. Never use raw hex in widgets.
+/// Colour tokens from the v3 design system. Never use raw hex in widgets.
 abstract final class SharelyColors {
-  static const ink = Color(0xFF112D4E);
-  static const accent = Color(0xFF3F72AF);
-  static const onAccent = Color(0xFFFFFFFF);
-  // Accent tint for text and lines on ink, where plain accent is too faint.
-  static const accentOnInk = Color(0xFF8FB4E3);
-  static const mist = Color(0xFFDBE2EF);
-  static const paper = Color(0xFFF9F7F7);
-  static const slate = Color(0xFF4D6585);
-  static const surface = Color(0xFFFFFFFF);
-  static const paperBorder = Color(0xFFDBE2EF);
+  static const background = Color(0xFF071A2D);
+  static const surface = Color(0xFF0D2742);
+  static const elevated = Color(0xFF123556);
+  // A step below surface, for rows and wells that sit inside a card.
+  static const sunken = Color(0xFF0A2139);
+  static const line = Color(0xFF1B3F63);
+  static const lineStrong = Color(0xFF24507A);
+  static const lineHover = Color(0xFF2E6390);
+  static const secondaryHover = Color(0xFF174068);
 
-  // Dark-screen layers: tints of ink so the palette stays four colours.
-  static const inkRaised = Color(0xFF1A3A60);
-  static const inkRaisedHigh = Color(0xFF21466F);
-  static const inkBorder = Color(0xFF1F3D63);
-  static const inkBorderStrong = Color(0xFF2B4D78);
-  static const onInkMuted = Color(0xFF9DB0C8);
-  static const onInkSoft = Color(0xFFDBE2EF);
-  static const onInkQuiet = Color(0xFFC3CFE0);
+  // Cyan marks actions, progress, connection and selected navigation only.
+  static const primary = Color(0xFF71C9CE);
+  static const primaryHover = Color(0xFF8DE0E4);
+  static const primarySoft = Color(0xFFA6E3E9);
+  static const onPrimary = Color(0xFF071A2D);
 
-  // Mist steps for placeholders, dashed drop zones and dividers on light.
-  static const mistLight = Color(0xFFE8EDF5);
-  static const mistMid = Color(0xFFC9D4E6);
-  static const mistDeep = Color(0xFFB8C6DD);
+  static const text = Color(0xFFF5FAFC);
+  static const textSecondary = Color(0xFF91A9BA);
+
+  static const success = Color(0xFF52D273);
+  static const danger = Color(0xFFFF647C);
+  static const dangerText = Color(0xFFFF8A9C);
+  static const dangerSurface = Color(0xFF2A1F35);
+  static const dangerLine = Color(0xFF7A3445);
+  static const stalled = Color(0xFF5E7A90);
+
+  static const primaryTint = Color(0x1F71C9CE);
+  static const successTint = Color(0x1F52D273);
+  static const dangerTint = Color(0x1FFF647C);
+  static const neutralTint = Color(0x1A91A9BA);
+  static const scrim = Color(0xB8030C16);
+  static const shadow = Color(0x59020A14);
 }
 
 abstract final class SharelySpacing {
@@ -33,29 +41,38 @@ abstract final class SharelySpacing {
   static const double sm = 8;
   static const double md = 12;
   static const double lg = 16;
+  static const double page = 20;
   static const double xl = 24;
   static const double xxl = 32;
+  static const double huge = 48;
 }
 
+/// Smaller things get smaller corners.
 abstract final class SharelyRadii {
-  static const chip = Radius.circular(999);
-  static const button = Radius.circular(18);
-  static const tile = Radius.circular(22);
-  static const card = Radius.circular(28);
-  static const panel = Radius.circular(32);
+  static const pill = Radius.circular(999);
+  static const badge = Radius.circular(6);
+  static const row = Radius.circular(8);
+  static const button = Radius.circular(10);
+  static const tile = Radius.circular(12);
+  static const zone = Radius.circular(16);
+  static const card = Radius.circular(20);
 }
 
 abstract final class SharelySizes {
   static const double minTouchTarget = 44;
-  static const double buttonHeight = 60;
+  static const double buttonLarge = 52;
+  static const double buttonMedium = 44;
+  static const double buttonSmall = 36;
+  static const double sidebarWidth = 240;
+  static const double tabBarHeight = 66;
 }
 
 abstract final class SharelyMotion {
-  static const fast = Duration(milliseconds: 180);
-  static const medium = Duration(milliseconds: 320);
-  static const slow = Duration(milliseconds: 520);
-  static const transferLoop = Duration(milliseconds: 2400);
+  static const fast = Duration(milliseconds: 140);
+  static const medium = Duration(milliseconds: 220);
+  static const slow = Duration(milliseconds: 360);
+  static const transferLoop = Duration(milliseconds: 1800);
 
-  static const Curve standard = Curves.easeOutCubic;
-  static const Curve emphasized = Easing.emphasizedDecelerate;
+  static const Curve standard = Cubic(0.2, 0.8, 0.2, 1);
+  static const Curve emphasized = Cubic(0.2, 0.8, 0.2, 1);
 }

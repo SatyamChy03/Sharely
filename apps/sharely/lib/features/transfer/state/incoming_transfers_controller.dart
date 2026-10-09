@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
-import 'package:sharely/features/transfer/state/has_received_file.dart';
 import 'package:sharely/features/transfer/state/incoming_transfer_view.dart';
 import 'package:sharely/features/transfer/state/recent_transfer.dart';
 import 'package:sharely/features/transfer/state/recent_transfers.dart';
@@ -95,7 +94,6 @@ class IncomingTransfersController extends Notifier<List<IncomingTransferView>> {
       case IncomingTransferInterrupted(:final transferId):
         _update(transferId, (view) => view.copyWith(isReconnecting: true));
       case IncomingTransferCompleted(:final transferId, :final savedFiles):
-        ref.read(hasReceivedFileProvider.notifier).markReceived();
         _recordReceived(transferId, savedFiles);
         _update(
           transferId,

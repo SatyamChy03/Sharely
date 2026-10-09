@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 
 /// "Always accept" plus Decline and Accept; Accept is the one accent.
 class IncomingOfferActions extends StatefulWidget {
@@ -20,7 +22,7 @@ class _IncomingOfferActionsState extends State<IncomingOfferActions> {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 16,
+      spacing: SharelySpacing.sm,
       children: [
         CheckboxListTile(
           value: _alwaysAccept,
@@ -28,71 +30,33 @@ class _IncomingOfferActionsState extends State<IncomingOfferActions> {
           controlAffinity: ListTileControlAffinity.leading,
           contentPadding: EdgeInsets.zero,
           dense: true,
-          activeColor: SharelyColors.accentOnInk,
-          checkColor: SharelyColors.ink,
           title: Text(
             'Always accept from this phone',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: SharelyColors.onInkSoft),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
         Row(
-          spacing: 10,
+          spacing: SharelySpacing.sm,
           children: [
             Expanded(
-              child: NotificationButton(
+              child: SharelyButton(
                 label: 'Decline',
+                variant: SharelyButtonVariant.secondary,
+                height: 40,
                 onPressed: widget.onDecline,
               ),
             ),
             Expanded(
-              child: NotificationButton(
+              child: SharelyButton(
                 label: 'Accept',
-                isPrimary: true,
+                leadingIcon: LucideIcons.check,
+                height: 40,
                 onPressed: () => widget.onAccept(_alwaysAccept),
               ),
             ),
           ],
         ),
       ],
-    );
-  }
-}
-
-/// The 48-high buttons used inside laptop notifications.
-class NotificationButton extends StatelessWidget {
-  const new({
-    required this.label,
-    required this.onPressed,
-    super.key,
-    this.isPrimary = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isPrimary;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        minimumSize: const Size(0, 48),
-        backgroundColor: isPrimary ? SharelyColors.accent : Colors.transparent,
-        foregroundColor: SharelyColors.surface,
-        textStyle: Theme.of(context).textTheme.labelLarge
-            ?.copyWith(fontSize: 15),
-        shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
-          side: isPrimary
-              ? BorderSide.none
-              : const BorderSide(
-                  color: SharelyColors.inkBorderStrong,
-                  width: 1.5,
-                ),
-        ),
-      ),
-      child: Text(label),
     );
   }
 }

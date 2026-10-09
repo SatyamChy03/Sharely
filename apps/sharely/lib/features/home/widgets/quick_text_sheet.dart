@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/input_decoration.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
+import 'package:sharely/design/widgets/sheet_grabber.dart';
 
 /// Phone sheet for typing or pasting a link, a note or an OTP to send.
 class QuickTextSheet extends StatefulWidget {
@@ -45,21 +46,22 @@ class _QuickTextSheetState extends State<QuickTextSheet> {
       // Keeps the field and Send above the keyboard.
       padding: EdgeInsets.fromLTRB(
         20,
-        4,
+        10,
         20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
+        28 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: SharelySpacing.lg,
+        spacing: 18,
         children: [
+          const Center(child: SheetGrabber()),
           Row(
             children: [
               Expanded(
                 child: Text(
                   'Send to ${widget.laptopName}',
-                  style: textTheme.headlineMedium?.copyWith(fontSize: 22),
+                  style: textTheme.headlineSmall,
                 ),
               ),
               TextButton.icon(
@@ -75,20 +77,14 @@ class _QuickTextSheetState extends State<QuickTextSheet> {
             minLines: 3,
             maxLines: 6,
             keyboardType: TextInputType.multiline,
-            decoration: const InputDecoration(
+            style: textTheme.bodyMedium,
+            decoration: sharelyInputDecoration(
               hintText: 'A link, a note or an OTP…',
-              filled: true,
-              fillColor: SharelyColors.paper,
-              border: OutlineInputBorder(
-                borderSide: BorderSide.none,
-                borderRadius: BorderRadius.all(SharelyRadii.button),
-              ),
             ),
           ),
           SharelyButton(
             label: 'Send',
-            variant: SharelyButtonVariant.ink,
-            trailingIcon: LucideIcons.arrowUp,
+            leadingIcon: LucideIcons.arrowUp,
             onPressed: _send,
           ),
         ],

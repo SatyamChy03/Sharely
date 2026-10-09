@@ -1,18 +1,18 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:sharely/design/tokens.dart';
 
-enum SharelyButtonVariant { accent, ink, outline }
+/// Primary is the one main action on a view; the rest support it.
+enum SharelyButtonVariant { primary, secondary, ghost, danger }
 
-/// Full-width primary action. Accent on dark screens, Ink on light screens.
-class SharelyButton extends StatefulWidget {
+/// The app's button: 10 px corners, 36 to 52 px tall, full width by default.
+class SharelyButton extends StatelessWidget {
   const new({
     required this.label,
     required this.onPressed,
     super.key,
-    this.variant = SharelyButtonVariant.accent,
+    this.variant = SharelyButtonVariant.primary,
+    this.height = SharelySizes.buttonLarge,
+    this.isExpanded = true,
     this.trailingIcon,
     this.leadingIcon,
   });
@@ -20,90 +20,107 @@ class SharelyButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final SharelyButtonVariant variant;
+  final double height;
+  final bool isExpanded;
   final IconData? trailingIcon;
   final IconData? leadingIcon;
 
   @override
-  State<SharelyButton> createState() => _SharelyButtonState();
-}
-
-class _SharelyButtonState extends State<SharelyButton> {
-  bool _isPressed = false;
-
-  void _setPressed({required bool isPressed}) {
-    if (widget.onPressed == null || _isPressed == isPressed) return;
-    setState(() => _isPressed = isPressed);
-  }
-
-  void _handlePressed() {
-    unawaited(HapticFeedback.lightImpact());
-    widget.onPressed?.call();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) => _setPressed(isPressed: true),
-      onPointerUp: (_) => _setPressed(isPressed: false),
-      onPointerCancel: (_) => _setPressed(isPressed: false),
-      child: AnimatedScale(
-        scale: _isPressed ? 0.97 : 1,
-        duration: SharelyMotion.fast,
-        curve: SharelyMotion.standard,
-        child: SizedBox(
-          width: double.infinity,
-          height: SharelySizes.buttonHeight,
-          child: TextButton(
-            onPressed: widget.onPressed == null ? null : _handlePressed,
-            style: _buttonStyle(context),
-            child: _ButtonContent(
-              widget.label,
-              trailingIcon: widget.trailingIcon,
-              leadingIcon: widget.leadingIcon,
-            ),
-          ),
+    final button = TextButton(
+      onPressed: onPressed,
+      style: _buttonStyle(context),
+      child: _ButtonContent(
+        label,
+        iconSize: height >= SharelySizes.buttonMedium ? 18 : 16,
+        trailingIcon: trailingIcon,
+        leadingIcon: leadingIcon,
+      ),
+    );
+    return SizedBox(
+      width: isExpanded ? double.infinity : null,
+      height: height,
+      child: button,
+    );
+  }
+
+  ButtonStyle _buttonStyle(BuildContext context) {
+    final (background, hover, foreground, border) = _colors();
+    final isPrimary = variant == SharelyButtonVariant.primary;
+    final isLarge = height > SharelySizes.buttonMedium;
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return isPrimary ? SharelyColors.elevated : background;
+        }
+        final isActive =
+            states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.pressed);
+        return isActive ? hover : background;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        return states.contains(WidgetState.disabled)
+            ? SharelyColors.textSecondary
+            : foreground;
+      }),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      minimumSize: const WidgetStatePropertyAll(Size.zero),
+      padding: WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: isLarge ? 20 : 14),
+      ),
+      textStyle: WidgetStatePropertyAll(
+        Theme.of(context).textTheme.labelLarge?.copyWith(
+          fontSize: isLarge ? 16 : (height >= 40 ? 15 : 13),
+          fontWeight: isPrimary ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(SharelyRadii.button),
+          side: border == null ? BorderSide.none : BorderSide(color: border),
         ),
       ),
     );
   }
 
-  ButtonStyle _buttonStyle(BuildContext context) {
-    final (background, foreground, border) = switch (widget.variant) {
-      SharelyButtonVariant.accent => (
-        SharelyColors.accent,
-        SharelyColors.onAccent,
-        null,
-      ),
-      SharelyButtonVariant.ink => (
-        SharelyColors.ink,
-        SharelyColors.surface,
-        null,
-      ),
-      SharelyButtonVariant.outline => (
-        Colors.transparent,
-        Theme.of(context).colorScheme.onSurface,
-        BorderSide(color: Theme.of(context).colorScheme.outline, width: 1.5),
-      ),
-    };
-    return TextButton.styleFrom(
-      backgroundColor: background,
-      foregroundColor: foreground,
-      // Fade the variant's own colours; the default grey is unreadable on blue.
-      disabledBackgroundColor: background.withValues(alpha: 0.4),
-      disabledForegroundColor: foreground.withValues(alpha: 0.6),
-      textStyle: Theme.of(context).textTheme.labelLarge,
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(SharelyRadii.button),
-        side: border ?? BorderSide.none,
-      ),
-    );
-  }
+  (Color, Color, Color, Color?) _colors() => switch (variant) {
+    SharelyButtonVariant.primary => (
+      SharelyColors.primary,
+      SharelyColors.primaryHover,
+      SharelyColors.onPrimary,
+      null,
+    ),
+    SharelyButtonVariant.secondary => (
+      SharelyColors.elevated,
+      SharelyColors.secondaryHover,
+      SharelyColors.text,
+      SharelyColors.lineStrong,
+    ),
+    SharelyButtonVariant.ghost => (
+      Colors.transparent,
+      SharelyColors.elevated,
+      SharelyColors.textSecondary,
+      null,
+    ),
+    SharelyButtonVariant.danger => (
+      SharelyColors.dangerSurface,
+      SharelyColors.dangerSurface,
+      SharelyColors.dangerText,
+      SharelyColors.dangerLine,
+    ),
+  };
 }
 
 class _ButtonContent extends StatelessWidget {
-  const new(this.label, {this.trailingIcon, this.leadingIcon});
+  const new(
+    this.label, {
+    required this.iconSize,
+    this.trailingIcon,
+    this.leadingIcon,
+  });
 
   final String label;
+  final double iconSize;
   final IconData? trailingIcon;
   final IconData? leadingIcon;
 
@@ -112,12 +129,13 @@ class _ButtonContent extends StatelessWidget {
     final leading = leadingIcon;
     final trailing = trailingIcon;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       spacing: SharelySpacing.sm,
       children: [
-        if (leading != null) Icon(leading, size: 20),
+        if (leading != null) Icon(leading, size: iconSize),
         Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-        if (trailing != null) Icon(trailing, size: 20),
+        if (trailing != null) Icon(trailing, size: iconSize),
       ],
     );
   }

@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/typography.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 import 'package:sharely/features/transfer/state/received_note.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -33,9 +34,10 @@ class ReceivedNoteCard extends StatelessWidget {
     final link = note.link;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 6, 6, 14),
-      decoration: const BoxDecoration(
-        color: SharelyColors.surface,
-        borderRadius: BorderRadius.all(SharelyRadii.tile),
+      decoration: BoxDecoration(
+        color: SharelyColors.elevated,
+        borderRadius: const BorderRadius.all(SharelyRadii.tile),
+        border: Border.all(color: SharelyColors.lineStrong),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,7 +83,7 @@ class ReceivedNoteCard extends StatelessWidget {
     if (_shortCode.hasMatch(note.text)) {
       return SelectableText(
         note.text,
-        style: sharelyMonoStyle(size: 26, color: SharelyColors.ink),
+        style: sharelyMonoStyle(size: 26, color: SharelyColors.text),
       );
     }
     return SelectableText(
@@ -130,7 +132,7 @@ class _NoteHeader extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: SharelyColors.slate),
+                ?.copyWith(color: SharelyColors.textSecondary),
           ),
         ),
         IconButton(
@@ -140,7 +142,11 @@ class _NoteHeader extends StatelessWidget {
             width: SharelySizes.minTouchTarget,
             height: SharelySizes.minTouchTarget,
           ),
-          icon: const Icon(LucideIcons.x, size: 16, color: SharelyColors.slate),
+          icon: const Icon(
+            LucideIcons.x,
+            size: 16,
+            color: SharelyColors.textSecondary,
+          ),
         ),
       ],
     );
@@ -162,21 +168,15 @@ class _NoteAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
+    return SharelyButton(
+      label: label,
+      leadingIcon: icon,
+      variant: isPrimary
+          ? SharelyButtonVariant.primary
+          : SharelyButtonVariant.secondary,
+      height: SharelySizes.buttonSmall,
+      isExpanded: false,
       onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: TextButton.styleFrom(
-        minimumSize: const Size(0, SharelySizes.minTouchTarget),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        backgroundColor: isPrimary ? SharelyColors.ink : SharelyColors.paper,
-        foregroundColor: isPrimary ? SharelyColors.surface : SharelyColors.ink,
-        iconColor: isPrimary ? SharelyColors.surface : SharelyColors.ink,
-        textStyle: Theme.of(context).textTheme.labelMedium,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(14)),
-        ),
-      ),
     );
   }
 }

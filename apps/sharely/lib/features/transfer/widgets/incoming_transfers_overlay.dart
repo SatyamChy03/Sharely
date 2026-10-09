@@ -71,12 +71,11 @@ class _NoteNotification extends StatelessWidget {
           maxWidth: IncomingTransferCard.maxWidth,
         ),
         child: Material(
-          color: SharelyColors.surface,
-          elevation: 12,
-          shadowColor: SharelyColors.ink.withValues(alpha: 0.4),
+          color: Colors.transparent,
+          elevation: 6,
+          shadowColor: SharelyColors.shadow,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(SharelyRadii.tile),
-            side: BorderSide(color: SharelyColors.mist),
           ),
           child: ReceivedNoteCard(
             note: note,

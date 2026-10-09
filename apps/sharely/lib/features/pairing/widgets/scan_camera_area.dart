@@ -76,8 +76,8 @@ class _CameraPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        color: SharelyColors.ink,
-        borderRadius: BorderRadius.all(SharelyRadii.panel),
+        color: SharelyColors.sunken,
+        borderRadius: BorderRadius.all(SharelyRadii.card),
       ),
       child: Center(
         child: SingleChildScrollView(
@@ -98,7 +98,7 @@ class _CameraUnavailableMessage extends StatelessWidget {
       "Can't open the camera on this device. Restart Sharely and try again.",
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.bodyMedium
-          ?.copyWith(color: SharelyColors.onInkSoft),
+          ?.copyWith(color: SharelyColors.textSecondary),
     );
   }
 }

@@ -70,7 +70,7 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('home explains an unreachable laptop and disables Send', (
+  testWidgets('home explains an unreachable laptop and disables sending', (
     tester,
   ) async {
     await _pump(
@@ -86,13 +86,10 @@ void main() {
     expect(find.text('satyam-LOQ'), findsOneWidget);
     expect(find.textContaining("Can't reach it"), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
-    final send = tester.widget<TextButton>(
-      find.ancestor(
-        of: find.text('Send to laptop'),
-        matching: find.byType(TextButton),
-      ),
+    final photos = tester.widget<InkWell>(
+      find.ancestor(of: find.text('Photos'), matching: find.byType(InkWell)),
     );
-    expect(send.onPressed, isNull);
+    expect(photos.onTap, isNull);
   });
 
   final sendScreens = <String, (SendState, List<String>)>{
@@ -103,12 +100,7 @@ void main() {
           (name: 'IMG_2052.jpg', sizeBytes: 2100000),
         ],
       ),
-      [
-        'Sending to',
-        'Accept on your laptop to start.',
-        'IMG_2051.jpg',
-        'Cancel',
-      ],
+      ['Sending', 'Accept on your laptop to start.', 'IMG_2051.jpg', 'Cancel'],
     ),
     'in progress': (
       const SendInProgress(
@@ -117,23 +109,27 @@ void main() {
         bytesPerSecond: 5000000,
       ),
       [
-        '25%',
+        '2.5 MB / 10.0 MB',
         '5.0 MB/s',
-        '0 / 1',
+        '0 of 1 done',
         '~2 s',
         'Keeps going if you leave this screen',
       ],
     ),
     'succeeded': (
       const SendSucceeded(files: [(name: 'a.jpg', sizeBytes: 2048)]),
-      ['100%', '1 / 1', 'done', 'Done'],
+      ['Transfer complete', '1 file · 2.0 KB', 'Sent to your laptop', 'Done'],
     ),
     'declined': (
       const SendFailed(
         files: [(name: 'a.jpg', sizeBytes: 2048)],
         reason: TransferFailure.rejected,
       ),
-      [describeSendFailure(TransferFailure.rejected), 'Back to home'],
+      [
+        "Couldn't send",
+        describeSendFailure(TransferFailure.rejected),
+        'Back to home',
+      ],
     ),
   };
   for (final MapEntry(key: name, value: (state, texts))
@@ -174,10 +170,8 @@ void main() {
       ],
     );
 
-    expect(
-      find.text('Motorola moto g54 5G is sending 2 files'),
-      findsOneWidget,
-    );
+    expect(find.text('Motorola moto g54 5G'), findsOneWidget);
+    expect(find.text('wants to send 2 files'), findsOneWidget);
     expect(find.text('4.2 MB'), findsOneWidget);
     expect(find.text('Always accept from this phone'), findsOneWidget);
     expect(find.text('IMG_2041.jpg'), findsOneWidget);

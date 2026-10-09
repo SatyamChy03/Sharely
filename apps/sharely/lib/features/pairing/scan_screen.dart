@@ -10,108 +10,81 @@ import 'package:sharely/design/tokens.dart';
 import 'package:sharely/design/widgets/sharely_button.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
-import 'package:sharely/features/pairing/widgets/no_code_hint_card.dart';
+import 'package:sharely/features/pairing/widgets/pairing_failed_view.dart';
+import 'package:sharely/features/pairing/widgets/pairing_progress_view.dart';
+import 'package:sharely/features/pairing/widgets/pairing_step_header.dart';
 import 'package:sharely/features/pairing/widgets/scan_camera_area.dart';
-import 'package:sharely/features/pairing/widgets/scan_status_card.dart';
-import 'package:sharely/features/pairing/widgets/step_progress.dart';
 
-/// Get started step 2 of 3: scan the QR code shown on the laptop.
+/// Pairing step 1 (M02): scan the QR code shown on the laptop.
 class ScanScreen extends ConsumerWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pairingState = ref.watch(phonePairingProvider);
+    final controller = ref.read(phonePairingProvider.notifier);
     ref.listen(phonePairingProvider, (previous, next) {
       if (next is PhonePaired) context.go(AppRoutes.connected);
     });
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _ScanHeader(),
-              const Gap(SharelySpacing.xl),
-              Text(
-                'Scan the code on your laptop',
-                style: textTheme.headlineLarge,
-              ),
-              const Gap(SharelySpacing.sm),
-              Text(
-                'It pairs once. After that, your devices find each other '
-                'on their own.',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: SharelyColors.slate,
-                ),
-              ),
-              const Gap(SharelySpacing.xl),
-              // Takes the free space so the camera keeps its designed height.
-              Expanded(child: _ScanArea(pairingState: pairingState)),
-              const Gap(SharelySpacing.lg),
-              SharelyButton(
-                label: 'Type a 6-digit code instead',
-                variant: SharelyButtonVariant.outline,
-                onPressed: () {
-                  ref.read(phonePairingProvider.notifier).scanAgain();
-                  unawaited(context.push(AppRoutes.typeCode));
-                },
-              ),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: switch (pairingState) {
+            PhoneConnecting(:final laptopName) => PairingProgressView(
+              laptopName: laptopName,
+              onCancel: controller.scanAgain,
+            ),
+            PhonePairingFailed(:final issue) => PairingFailedView(
+              issue: issue,
+              onTryAgain: controller.scanAgain,
+            ),
+            _ => const _ScanStep(),
+          },
         ),
       ),
     );
   }
 }
 
-class _ScanArea extends ConsumerWidget {
-  const new({required this.pairingState});
-
-  final PhonePairingState pairingState;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isShowingStatus =
-        pairingState is PhoneConnecting || pairingState is PhonePairingFailed;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 360 high as designed, shrinking only on short phones.
-        const Flexible(child: SizedBox(height: 360, child: ScanCameraArea())),
-        const Gap(SharelySpacing.lg),
-        if (isShowingStatus)
-          ScanStatusCard(
-            state: pairingState,
-            onScanAgain: ref.read(phonePairingProvider.notifier).scanAgain,
-          )
-        else
-          const NoCodeHintCard(),
-      ],
-    );
-  }
-}
-
-class _ScanHeader extends StatelessWidget {
+class _ScanStep extends ConsumerWidget {
   const new();
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        IconButton.filledTonal(
-          tooltip: 'Back',
-          onPressed: () => context.pop(),
-          style: IconButton.styleFrom(
-            backgroundColor: SharelyColors.surface,
-            foregroundColor: SharelyColors.ink,
+        PairingStepHeader(currentStep: 1, onBack: () => context.pop()),
+        const Gap(22),
+        Text('Connect your laptop', style: textTheme.headlineLarge),
+        const Gap(SharelySpacing.sm),
+        Text(
+          'Scan the code on your laptop to pair your devices.',
+          style: textTheme.bodyLarge?.copyWith(
+            height: 1.5,
+            color: SharelyColors.textSecondary,
           ),
-          icon: const Icon(LucideIcons.chevronLeft),
         ),
-        const StepProgress(currentStep: 2),
+        const Gap(22),
+        // Square as designed, shrinking only on short phones.
+        const Expanded(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: AspectRatio(aspectRatio: 1, child: ScanCameraArea()),
+          ),
+        ),
+        const Gap(SharelySpacing.lg),
+        SharelyButton(
+          label: 'Or enter the 6-digit code',
+          leadingIcon: LucideIcons.keyboard,
+          variant: SharelyButtonVariant.secondary,
+          onPressed: () {
+            ref.read(phonePairingProvider.notifier).scanAgain();
+            unawaited(context.push(AppRoutes.typeCode));
+          },
+        ),
       ],
     );
   }

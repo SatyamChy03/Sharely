@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:sharely/design/input_decoration.dart';
 import 'package:sharely/design/tokens.dart';
+import 'package:sharely/design/widgets/sharely_button.dart';
 
-/// "Paste a link, a note or an OTP…" with an accent Send.
+/// "Paste a link, a note or an OTP…" with a Send button.
 class QuickTextBar extends StatefulWidget {
   const new({required this.onSend, super.key});
 
@@ -30,42 +33,30 @@ class _QuickTextBarState extends State<QuickTextBar> {
   @override
   Widget build(BuildContext context) {
     final onSend = widget.onSend;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
-      decoration: const BoxDecoration(
-        color: SharelyColors.surface,
-        borderRadius: BorderRadius.all(Radius.circular(20)),
-      ),
-      child: Row(
-        spacing: 10,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              enabled: onSend != null,
-              onSubmitted: (_) => _send(),
-              decoration: const InputDecoration(
-                hintText: 'Paste a link, a note or an OTP…',
-                border: InputBorder.none,
-                filled: false,
-                isDense: true,
-              ),
-            ),
+    return Row(
+      spacing: 10,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            enabled: onSend != null,
+            onSubmitted: (_) => _send(),
+            style: Theme.of(context).textTheme.bodyMedium,
+            decoration: sharelyInputDecoration(
+              hintText: 'Paste a link, a note or an OTP…',
+              prefixIcon: const Icon(LucideIcons.link, size: 16),
+            ).copyWith(fillColor: SharelyColors.surface),
           ),
-          FilledButton(
-            onPressed: onSend == null ? null : _send,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              backgroundColor: SharelyColors.accent,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-              ),
-            ),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
+        ),
+        SharelyButton(
+          label: 'Send',
+          leadingIcon: LucideIcons.arrowUp,
+          variant: SharelyButtonVariant.secondary,
+          height: SharelySizes.buttonMedium,
+          isExpanded: false,
+          onPressed: onSend == null ? null : _send,
+        ),
+      ],
     );
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sharely/design/tokens.dart';
-import 'package:sharely/features/home/widgets/recent_transfer_row.dart';
 import 'package:sharely/features/transfer/state/recent_transfers.dart';
+import 'package:sharely/features/transfer/widgets/transfer_row.dart';
 
 /// "Recent" on Home: the last three transfers, with a way to see them all.
 class RecentSection extends ConsumerWidget {
@@ -23,10 +23,7 @@ class RecentSection extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent',
-              style: textTheme.titleMedium?.copyWith(fontSize: 17),
-            ),
+            Text('Recent', style: textTheme.titleMedium),
             if (recent.isNotEmpty)
               TextButton(onPressed: onSeeAll, child: const Text('See all')),
           ],
@@ -34,10 +31,16 @@ class RecentSection extends ConsumerWidget {
         if (recent.isEmpty)
           Text(
             'Nothing yet. Files you send or receive show up here.',
-            style: textTheme.bodyMedium?.copyWith(color: SharelyColors.slate),
+            style: textTheme.bodyMedium?.copyWith(
+              color: SharelyColors.textSecondary,
+            ),
           ),
         for (final transfer in recent.take(_shownOnHome))
-          RecentTransferRow(transfer: transfer),
+          TransferRow(
+            transfer: transfer,
+            thumbSize: 44,
+            background: SharelyColors.surface,
+          ),
       ],
     );
   }
