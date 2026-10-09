@@ -48,6 +48,21 @@ class PairedDevicesNotifier extends AsyncNotifier<List<PairedDevice>> {
     await _saveOrKeepInMemory(kept);
   }
 
+  /// Makes [deviceId] the laptop this phone connects to: the active one is
+  /// the last in the list, which is also where a new pairing lands.
+  Future<void> makeActive(String deviceId) async {
+    final current = await future;
+    final chosen = current.where((device) => device.deviceId == deviceId);
+    if (chosen.isEmpty || current.last.deviceId == deviceId) return;
+    final reordered = List<PairedDevice>.unmodifiable([
+      ...current.where((device) => device.deviceId != deviceId),
+      chosen.first,
+    ]);
+    if (!ref.mounted) return;
+    state = AsyncData(reordered);
+    await _saveOrKeepInMemory(reordered);
+  }
+
   /// Remembers whether offers from [deviceId] skip the accept prompt.
   Future<void> setAlwaysAccept(String deviceId, {required bool isOn}) async {
     final current = await future;

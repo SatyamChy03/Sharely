@@ -181,6 +181,12 @@ class _LaptopCard extends ConsumerWidget {
         'Retry',
         connector.retryNow,
       ),
+      LaptopDisconnected(:final laptop) => (
+        laptop.deviceName,
+        'Disconnected. Connect to use this laptop again.',
+        'Connect',
+        connector.connect,
+      ),
       LaptopNeedsRepairing(:final laptop) => (
         laptop.deviceName,
         "Scan the laptop's code once more to connect.",

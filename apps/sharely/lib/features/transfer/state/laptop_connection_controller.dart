@@ -47,9 +47,15 @@ final laptopConnectionProvider =
       LaptopConnectionController.new,
     );
 
-/// Keeps the phone connected to its paired laptop while the app is open.
+/// Keeps the phone connected to its active laptop while the app is open.
+///
+/// The active laptop is the last one in the paired list; pairing or
+/// choosing a laptop moves it there.
 class LaptopConnectionController extends Notifier<LaptopConnectionState> {
   ControlConnection? _connection;
+  // By id, so pairing or choosing another laptop connects straight away.
+  String? _disconnectedLaptopId;
+  int _buildCount = 0;
   Timer? _retryTimer;
   int _failedAttempts = 0;
 
@@ -65,15 +71,43 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     );
     final devices = ref.read(pairedDevicesProvider).value ?? const [];
     final laptop = devices.lastOrNull;
+    // Connects started for an earlier laptop, or before a disconnect, must
+    // not land on this build's state.
+    final build = ++_buildCount;
     ref.onDispose(() {
       _retryTimer?.cancel();
-      unawaited(_connection?.close());
+      final connection = _connection;
+      // Cleared first, so its closing isn't mistaken for a lost link.
+      _connection = null;
+      unawaited(connection?.close());
     });
     if (laptop == null) return const LaptopNotPaired();
     if (laptop.endpoint == null) return LaptopNeedsRepairing(laptop);
-    unawaited(Future.microtask(() => _connect(laptop)));
+    if (laptop.deviceId == _disconnectedLaptopId) {
+      return LaptopDisconnected(laptop);
+    }
+    unawaited(Future.microtask(() => _connect(laptop, build)));
     return LaptopConnecting(laptop);
   }
+
+  /// Closes the link to the active laptop and stays off it until [connect].
+  /// The pairing is kept. Lasts until the app is closed.
+  void disconnect() {
+    final laptop = _activeLaptop;
+    if (laptop == null) return;
+    _disconnectedLaptopId = laptop.deviceId;
+    ref.invalidateSelf();
+  }
+
+  /// Undoes [disconnect]; also retries at once if the laptop was unreachable.
+  void connect() {
+    if (_disconnectedLaptopId == null) return retryNow();
+    _disconnectedLaptopId = null;
+    ref.invalidateSelf();
+  }
+
+  PairedDevice? get _activeLaptop =>
+      (ref.read(pairedDevicesProvider).value ?? const []).lastOrNull;
 
   /// Skips the backoff, e.g. when the app comes back to the foreground.
   void retryNow() {
@@ -81,13 +115,14 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     if (current is! LaptopUnreachable) return;
     _retryTimer?.cancel();
     state = LaptopConnecting(current.laptop);
-    unawaited(_connect(current.laptop));
+    unawaited(_connect(current.laptop, _buildCount));
   }
 
-  Future<void> _connect(PairedDevice laptop) async {
+  Future<void> _connect(PairedDevice laptop, int build) async {
     final endpoint = laptop.endpoint;
     if (endpoint == null) return;
     final localHello = await ref.read(localHelloProvider.future);
+    bool isStale() => !ref.mounted || build != _buildCount;
     try {
       final connection = await ref.read(controlConnectorProvider)(
         endpoint,
@@ -96,12 +131,12 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
           authToken: laptop.authToken,
         ),
       );
-      if (!ref.mounted) return unawaited(connection.close());
+      if (isStale()) return unawaited(connection.close());
       _adopt(laptop, connection);
     } on TransferException {
-      if (!ref.mounted) return;
+      if (isStale()) return;
       if (await _followLaptopToNewAddress(laptop, localHello.deviceId)) return;
-      if (!ref.mounted) return;
+      if (isStale()) return;
       state = LaptopUnreachable(laptop);
       _scheduleRetry(laptop);
     }
@@ -148,7 +183,7 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     _retryTimer = Timer(Duration(seconds: delay), () {
       if (!ref.mounted || state is! LaptopUnreachable) return;
       state = LaptopConnecting(laptop);
-      unawaited(_connect(laptop));
+      unawaited(_connect(laptop, _buildCount));
     });
   }
 }
