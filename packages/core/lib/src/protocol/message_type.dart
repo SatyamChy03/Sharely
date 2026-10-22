@@ -10,7 +10,10 @@ enum MessageType {
   cancel,
   text,
   link,
-  clipboard;
+  clipboard,
+  ping,
+  pong,
+  presence;
 
   static MessageType fromWireName(String wireName) {
     for (final type in values) {

@@ -19,6 +19,7 @@ class ConnectedPhones extends Notifier<Set<String>> {
         subscription.cancel().ignore();
       }
     });
-    return const {};
+    // Phones that connected before anyone listened are connected all the same.
+    return hub.connectedDeviceIds;
   }
 }

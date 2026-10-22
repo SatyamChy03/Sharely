@@ -46,9 +46,11 @@ class TransferHarness {
     Duration resumeWindow = const Duration(seconds: 20),
     Duration dataIdleTimeout = defaultDataIdleTimeout,
     Duration offerLifetime = const Duration(minutes: 5),
+    ControlHub? hub,
   }) async {
     final workDirectory = await Directory.systemTemp.createTemp('sharely_');
     final receiver = TransferReceiver(
+      hub: hub,
       saveDirectory: () async => Directory('${workDirectory.path}/received'),
       resumeWindow: resumeWindow,
       dataIdleTimeout: dataIdleTimeout,
