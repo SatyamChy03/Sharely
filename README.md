@@ -12,7 +12,7 @@ Send files, photos, text, links and clipboard content between your phone and lap
 |---|---|
 | MVP | Android 8+, Windows 10+ |
 | Beta | iOS 15+, macOS 12+ |
-| Later | Linux |
+| Also built | Linux (x64): a `.deb` for Debian and Ubuntu, and a `.tar.gz` for other distributions |
 
 ## How it works
 
