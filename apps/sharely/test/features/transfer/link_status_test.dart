@@ -287,6 +287,10 @@ void main() {
       what: 'the new link',
     );
 
-    expect(phone.read(laptopConnectionProvider), isA<LaptopConnected>());
+    // The laptop sees the new link a moment before the phone adopts it.
+    await _eventually(
+      () => phone.read(laptopConnectionProvider) is LaptopConnected,
+      what: 'the phone showing connected',
+    );
   });
 }
