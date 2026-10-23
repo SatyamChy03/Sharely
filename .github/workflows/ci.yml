@@ -62,7 +62,7 @@ jobs:
       - name: Build APK
         working-directory: apps/sharely
         run: flutter build apk --release
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sharely-android-apk
           path: apps/sharely/build/app/outputs/flutter-apk/app-release.apk
@@ -84,7 +84,7 @@ jobs:
       - name: Build Windows
         working-directory: apps/sharely
         run: flutter build windows --release
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sharely-windows
           path: apps/sharely/build/windows/x64/runner/Release/
@@ -116,7 +116,7 @@ jobs:
         run: |
           version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' apps/sharely/pubspec.yaml)"
           tool/package_linux.sh "$version" dist
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sharely-linux
           path: dist/
