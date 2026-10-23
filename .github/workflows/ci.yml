@@ -89,3 +89,35 @@ jobs:
           name: sharely-windows
           path: apps/sharely/build/windows/x64/runner/Release/
           retention-days: 14
+
+  linux:
+    name: Build Linux app
+    needs: checks
+    # The oldest supported Ubuntu, so the app also runs on newer systems.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
+      - run: dart pub get
+      - name: Build Linux
+        working-directory: apps/sharely
+        run: flutter build linux --release
+      - name: Package .deb and .tar.gz
+        run: |
+          version="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' apps/sharely/pubspec.yaml)"
+          tool/package_linux.sh "$version" dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sharely-linux
+          path: dist/
+          retention-days: 14

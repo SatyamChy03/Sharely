@@ -45,6 +45,7 @@ export 'src/transfer/auto_accept.dart';
 export 'src/transfer/control_connection.dart';
 export 'src/transfer/incoming_download.dart';
 export 'src/transfer/incoming_transfer_event.dart';
+export 'src/transfer/link_liveness.dart';
 export 'src/transfer/mime_types.dart';
 export 'src/transfer/outgoing_file.dart';
 export 'src/transfer/outgoing_transfer.dart';

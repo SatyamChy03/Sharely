@@ -36,12 +36,20 @@ class DocumentPicker(
         if (call.method != "pickFiles") return result.notImplemented()
         if (pendingResult != null) return result.error("busy", "Picker already open", null)
         pendingResult = result
+        // Behind the picker Sharely counts as background, and Android 15 would
+        // cut its network, closing the link to the laptop mid-pick.
+        TransferService.holdForPicker(
+            activity,
+            activity.getString(R.string.picker_hold_title),
+            activity.getString(R.string.picker_hold_text),
+        )
         activity.startActivityForResult(pickIntent(call.argument<Boolean>("mediaOnly") == true), REQUEST_CODE)
     }
 
     /** Returns false for results that belong to someone else. */
     fun handleResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != REQUEST_CODE) return false
+        TransferService.releasePickerHold(activity)
         val result = pendingResult ?: return true
         pendingResult = null
         val uris = if (resultCode == Activity.RESULT_OK) pickedUris(data) else emptyList()
@@ -53,6 +61,7 @@ class DocumentPicker(
     }
 
     fun detach() {
+        TransferService.releasePickerHold(activity)
         channel.setMethodCallHandler(null)
         pendingResult?.success(emptyList<Map<String, Any>>())
         pendingResult = null

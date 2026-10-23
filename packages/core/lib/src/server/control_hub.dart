@@ -4,6 +4,7 @@ import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
 import 'package:sharely_core/src/server/request_authenticator.dart';
 import 'package:sharely_core/src/transfer/control_connection.dart';
+import 'package:sharely_core/src/transfer/link_liveness.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 
@@ -11,6 +12,23 @@ typedef DeviceMessage = ({PairedDevice sender, ProtocolMessage message});
 
 /// Laptop side: one live control connection per paired device.
 class ControlHub {
+  new({
+    this.clock,
+    this.checkEvery,
+    this.silenceLimit = controlSilenceLimit,
+    this.offScreenSilenceLimit = backgroundSilenceLimit,
+  });
+
+  /// Passed to every connection; tests use them to stand in for a pause.
+  final LivenessClock? clock;
+  final Duration? checkEvery;
+
+  /// How long a phone may stay silent while Sharely is on its screen.
+  final Duration silenceLimit;
+
+  /// How long a phone may stay silent after saying Sharely is off screen.
+  final Duration offScreenSilenceLimit;
+
   final _connections = <String, ControlConnection>{};
   final _messages = StreamController<DeviceMessage>.broadcast();
   final _disconnects = StreamController<String>.broadcast();
@@ -27,12 +45,24 @@ class ControlHub {
 
   bool isConnected(String deviceId) => _connections.containsKey(deviceId);
 
+  /// Every device connected right now, for a listener that starts late.
+  Set<String> get connectedDeviceIds => {..._connections.keys};
+
   /// Upgrades a request already admitted by [requirePairedDevice].
   FutureOr<Response> handleUpgrade(Request request) {
     final device = authenticatedDevice(request);
+    // No socket-level pings: [LinkLiveness] in the connection judges
+    // silence, and lets a phone that is off screen stay quiet for longer.
     final upgrade = webSocketHandler(
-      (channel, _) => _adopt(device, ControlConnection(channel)),
-      pingInterval: controlPingInterval,
+      (channel, _) => _adopt(
+        device,
+        ControlConnection(
+          channel,
+          clock: clock,
+          checkEvery: checkEvery,
+          allowedSilence: silenceLimit,
+        ),
+      ),
     );
     return upgrade(request);
   }
@@ -70,6 +100,12 @@ class ControlHub {
     if (previous != null) unawaited(previous.close());
     if (!_connects.isClosed) _connects.add(device.deviceId);
     connection.messages.listen((message) {
+      if (message case PresenceMessage(:final isOnScreen)) {
+        connection.allowedSilence = isOnScreen
+            ? silenceLimit
+            : offScreenSilenceLimit;
+        return;
+      }
       if (_messages.isClosed) return;
       _messages.add((sender: device, message: message));
     });

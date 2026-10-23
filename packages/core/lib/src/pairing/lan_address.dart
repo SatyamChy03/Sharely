@@ -19,19 +19,36 @@ bool isPrivateLanAddress(InternetAddress address) {
 bool isLocalNetworkPeer(InternetAddress address) =>
     address.isLoopback || isPrivateLanAddress(address);
 
-// Docker, VM and VPN adapters also hold private addresses, but no phone
-// can reach the laptop through them.
-final _virtualInterfaceName = RegExp(
-  '^(docker|br-|veth|virbr|vmnet|vboxnet|tun|tap|tailscale|zt|wg)|'
-  'vethernet|virtual|vmware|hyper-v|wsl',
+// Adapters that lead only to this machine's own containers and VMs, to a
+// VPN, or to the mobile network. They hold private addresses, but no
+// paired device is ever on them, so they are never served on or searched.
+final _unreachableInterfaceName = RegExp(
+  // "veth" pairs belong to containers; Windows "vEthernet" does not.
+  '^(docker|br-|veth(?!ernet)|virbr|vmnet|vboxnet|'
+  'tun|tap|tailscale|zt|wg|utun|ppp|'
+  'rmnet|ccmni|pdp|clat|v4-|dummy)|'
+  'wsl|default switch|vmnet|host-only',
   caseSensitive: false,
 );
 
+// A Hyper-V "external" switch carries the real network under a virtual
+// name, so these stay usable, but only when nothing better exists.
+final _virtualSwitchName = RegExp(
+  'vethernet|virtual|vmware|hyper-v',
+  caseSensitive: false,
+);
+
+/// True when no phone or laptop can be reached through [interfaceName].
+bool isUnreachableInterfaceName(String interfaceName) =>
+    _unreachableInterfaceName.hasMatch(interfaceName);
+
 /// True when [interfaceName] belongs to a virtual adapter, not real Wi-Fi.
 bool isVirtualInterfaceName(String interfaceName) =>
-    _virtualInterfaceName.hasMatch(interfaceName);
+    isUnreachableInterfaceName(interfaceName) ||
+    _virtualSwitchName.hasMatch(interfaceName);
 
-/// Private IPv4 addresses of this machine, most likely Wi-Fi address first.
+/// This machine's addresses on networks a paired device can share, most
+/// likely Wi-Fi address first. Empty means it is on no such network.
 Future<List<InternetAddress>> findLanAddresses() async {
   final interfaces = await NetworkInterface.list(
     type: InternetAddressType.IPv4,
@@ -43,7 +60,8 @@ Future<List<InternetAddress>> findLanAddresses() async {
   ]);
 }
 
-/// Orders private addresses: real adapters first, then the home range.
+/// Keeps the private addresses another device could reach, real adapters
+/// first, then the home range.
 List<InternetAddress> rankLanAddresses(
   List<({String interfaceName, InternetAddress address})> candidates,
 ) {
@@ -53,10 +71,24 @@ List<InternetAddress> rankLanAddresses(
       (candidate.address.rawAddress.first == 192 ? 0 : 1);
   final usable = [
     for (final candidate in candidates)
-      if (isPrivateLanAddress(candidate.address)) candidate,
+      if (isPrivateLanAddress(candidate.address) &&
+          !isUnreachableInterfaceName(candidate.interfaceName))
+        candidate,
   ]..sort((a, b) => rank(a).compareTo(rank(b)));
   return [for (final candidate in usable) candidate.address];
 }
+
+/// Whether a server on [current] should move, given the addresses this
+/// machine has [now], best first.
+///
+/// It moves when its address is gone, and also when a better one has
+/// appeared: after Wi-Fi drops, the only address left can be a Docker or
+/// VM adapter no phone can reach, and the server must not stay there once
+/// Wi-Fi is back.
+bool shouldServeElsewhere(
+  InternetAddress? current,
+  List<InternetAddress> now,
+) => now.firstOrNull != current;
 
 /// Sharely never serves on, or connects to, a privileged or invalid port.
 bool isValidServicePort(int port) => port >= 1024 && port <= 65535;

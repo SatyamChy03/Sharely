@@ -14,6 +14,10 @@ import android.util.Log
  * Keeps the app's process running at foreground priority while a send is in
  * progress, so Android doesn't freeze it once the user leaves the app.
  *
+ * It also runs while a picker Sharely opened is on screen: Android 15 cuts
+ * the network of an app in the background a few seconds after it leaves the
+ * screen, which would drop the link to the laptop while the user picks.
+ *
  * Wi-Fi power saving and CPU sleep would otherwise throttle a long send with
  * the screen off, so the service also holds a Wi-Fi lock and a wake lock.
  */
@@ -29,6 +33,9 @@ class TransferService : Service() {
         val text = intent?.getStringExtra(EXTRA_TEXT).orEmpty()
         when (intent?.action) {
             ACTION_START -> startInForeground(title, text)
+            ACTION_HOLD -> holdForPicker(title, text)
+            // A send that started from the pick now owns the service.
+            ACTION_RELEASE -> if (!isRunning) stopRunning()
             ACTION_UPDATE -> if (isInForeground) {
                 TransferNotifications.post(
                     this,
@@ -60,21 +67,14 @@ class TransferService : Service() {
     override fun onDestroy() {
         releaseLocks()
         isRunning = false
+        isHoldingForPicker = false
         super.onDestroy()
     }
 
     private fun startInForeground(title: String, text: String) {
         val notification = TransferNotifications.progress(this, title, text, null)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    TransferNotifications.PROGRESS_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-                )
-            } else {
-                startForeground(TransferNotifications.PROGRESS_ID, notification)
-            }
+            enterForeground(notification)
         } catch (error: IllegalStateException) {
             Log.w(TAG, "Not allowed to run in the foreground", error)
             stopRunning()
@@ -84,8 +84,33 @@ class TransferService : Service() {
         holdLocks()
     }
 
+    private fun holdForPicker(title: String, text: String) {
+        if (isInForeground) return
+        try {
+            enterForeground(TransferNotifications.ready(this, title, text))
+        } catch (error: IllegalStateException) {
+            Log.w(TAG, "Not allowed to keep the link while picking", error)
+            stopRunning()
+            return
+        }
+        isInForeground = true
+    }
+
+    private fun enterForeground(notification: android.app.Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                TransferNotifications.PROGRESS_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+        } else {
+            startForeground(TransferNotifications.PROGRESS_ID, notification)
+        }
+    }
+
     private fun stopRunning() {
         isRunning = false
+        isHoldingForPicker = false
         isInForeground = false
         releaseLocks()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -136,6 +161,8 @@ class TransferService : Service() {
         private const val ACTION_UPDATE = "com.sharely.transfer.UPDATE"
         private const val ACTION_FINISH = "com.sharely.transfer.FINISH"
         private const val ACTION_STOP = "com.sharely.transfer.STOP"
+        private const val ACTION_HOLD = "com.sharely.transfer.HOLD"
+        private const val ACTION_RELEASE = "com.sharely.transfer.RELEASE"
         const val ACTION_CANCEL = "com.sharely.transfer.CANCEL"
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_TEXT = "text"
@@ -146,8 +173,26 @@ class TransferService : Service() {
         var isRunning = false
             private set
 
+        /** True while a picker Sharely opened is on screen. */
+        @Volatile
+        var isHoldingForPicker = false
+            private set
+
         fun start(context: Context, title: String, text: String) {
+            isHoldingForPicker = false
             isRunning = deliver(context, ACTION_START, title, text, inForeground = true)
+        }
+
+        /** Keeps the network while the user picks; a send in progress already does. */
+        fun holdForPicker(context: Context, title: String, text: String) {
+            if (isRunning || isHoldingForPicker) return
+            isHoldingForPicker = deliver(context, ACTION_HOLD, title, text, inForeground = true)
+        }
+
+        fun releasePickerHold(context: Context) {
+            if (!isHoldingForPicker) return
+            isHoldingForPicker = false
+            deliver(context, ACTION_RELEASE, "", "")
         }
 
         fun update(context: Context, title: String, text: String, percent: Int) {
