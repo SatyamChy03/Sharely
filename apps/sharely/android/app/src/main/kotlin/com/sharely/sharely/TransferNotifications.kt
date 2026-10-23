@@ -29,6 +29,19 @@ object TransferNotifications {
             }
             .build()
 
+    /** Shown only if picking takes a while: Android hides it for quick picks. */
+    fun ready(context: Context, title: String, text: String): Notification =
+        builder(context, title, text)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED)
+                }
+            }
+            .build()
+
     fun finished(context: Context, title: String, text: String): Notification =
         builder(context, title, text).setAutoCancel(true).build()
 

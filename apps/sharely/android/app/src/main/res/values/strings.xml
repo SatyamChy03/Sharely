@@ -3,4 +3,6 @@
     <string name="transfer_channel_name">Transfers</string>
     <string name="transfer_channel_description">Progress of files moving between your phone and laptop</string>
     <string name="transfer_cancel">Cancel</string>
+    <string name="picker_hold_title">Sharely is ready to send</string>
+    <string name="picker_hold_text">Staying connected to your laptop while you choose</string>
 </resources>
