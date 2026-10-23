@@ -46,7 +46,9 @@ class DiscoveryResponder {
         findPairedDevice,
       );
       if (reply != null) responder._send(reply, datagram);
-    });
+      // A refused reply is reported here, after send() returned; the phone
+      // asks again on its next attempt.
+    }, onError: (Object _) {});
     return responder;
   }
 
