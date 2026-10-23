@@ -59,6 +59,57 @@ void main() {
     );
   });
 
+  test('pairing happens over TLS with the certificate in the invite', () async {
+    final secrets = MemorySecretStore();
+    final container = _laptopContainer(
+      address: InternetAddress.loopbackIPv4,
+      secrets: secrets,
+    );
+    final waiting = await container.read(
+      laptopPairingProvider.future,
+    ) as LaptopWaitingForPhone;
+
+    final identity = await TrustStore(secrets).loadOrCreateTlsIdentity();
+
+    expect(waiting.invite.certFingerprint, identity.fingerprint);
+    expect(waiting.invite.toUriString(), contains(identity.fingerprint));
+  });
+
+  test('removing a phone ends the connection it already had', () async {
+    final container = _laptopContainer(address: InternetAddress.loopbackIPv4);
+    final waiting = await container.read(
+      laptopPairingProvider.future,
+    ) as LaptopWaitingForPhone;
+    final laptop = await const PairingClient().pair(
+      invite: waiting.invite,
+      localHello: _phoneHello,
+    );
+    final connection = await ControlConnection.connect(
+      laptop.endpoint!,
+      authHeaders: buildAuthHeaders(
+        localDeviceId: _phoneHello.deviceId,
+        authToken: laptop.authToken,
+      ),
+    );
+    addTearDown(connection.close);
+
+    await container
+        .read(pairedDevicesProvider.notifier)
+        .forget(_phoneHello.deviceId);
+
+    await connection.done.timeout(const Duration(seconds: 5));
+    await expectLater(
+      ControlConnection.connect(
+        laptop.endpoint!,
+        authHeaders: buildAuthHeaders(
+          localDeviceId: _phoneHello.deviceId,
+          authToken: laptop.authToken,
+        ),
+      ),
+      throwsA(isA<TransferException>()),
+    );
+  });
+
   test('after a restart it shows the phone it already trusts', () async {
     final secrets = MemorySecretStore();
     final firstRun = _laptopContainer(

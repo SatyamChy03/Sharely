@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:sharely_core/src/net/bounded_body.dart';
+import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/protocol/json_fields.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
@@ -17,13 +18,14 @@ typedef ResumePoint = ({int bytes, bool isSaved});
 /// Throws [TransferException] when the laptop no longer knows the transfer
 /// or answers with something invalid.
 Future<ResumePoint?> askResumePoint(
-  Uri offsetUri, {
+  DeviceEndpoint endpoint,
+  String offsetPath, {
   required Map<String, String> authHeaders,
   required int fileSizeBytes,
 }) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+  final client = endpoint.createHttpClient();
   try {
-    final request = await client.getUrl(offsetUri);
+    final request = await client.getUrl(endpoint.httpsUri(offsetPath));
     authHeaders.forEach(request.headers.set);
     final response = await request.close().timeout(const Duration(seconds: 8));
     if (response.statusCode == HttpStatus.notFound) {

@@ -7,6 +7,7 @@ import 'package:sharely_core/src/pairing/lan_address.dart';
 import 'package:sharely_core/src/protocol/json_fields.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
+import 'package:sharely_core/src/security/cert_fingerprint.dart';
 import 'package:sharely_core/src/server/pairing_request_handler.dart';
 import 'package:sharely_core/src/server/sharely_server.dart';
 
@@ -40,7 +41,11 @@ class LaptopFinder {
   Future<List<FoundLaptop>> probe(Iterable<InternetAddress> candidates) async {
     final queue = [...candidates];
     final found = <FoundLaptop>[];
-    final client = HttpClient()..connectionTimeout = probeTimeout;
+    // Nothing secret is sent while looking, so any certificate may answer.
+    // The one that does is pinned for the pairing request that follows.
+    final client = HttpClient(context: SecurityContext())
+      ..connectionTimeout = probeTimeout
+      ..badCertificateCallback = (certificate, host, port) => true;
     try {
       for (var start = 0; start < queue.length; start += _parallelProbes) {
         final batch = queue.skip(start).take(_parallelProbes);
@@ -60,15 +65,24 @@ class LaptopFinder {
     InternetAddress host,
   ) async {
     try {
-      final request = await client.get(host.address, port, helloPath);
+      final request = await client.getUrl(
+        Uri(scheme: 'https', host: host.address, port: port, path: helloPath),
+      );
       final response = await request.close().timeout(probeTimeout * 2);
       if (response.statusCode != HttpStatus.ok) {
         await response.drain<void>();
         return null;
       }
+      final certificate = response.certificate;
+      if (certificate == null) return null;
       final body = await readBoundedUtf8(response, _maxHelloBytes);
       final hello = parseNestedHello(JsonFields(decodeJsonObject(body)));
-      return (endpoint: DeviceEndpoint(host: host, port: port), hello: hello);
+      final endpoint = DeviceEndpoint(
+        host: host,
+        port: port,
+        certFingerprint: certificateFingerprint(certificate.der),
+      );
+      return (endpoint: endpoint, hello: hello);
     } on IOException {
       return null;
     } on TimeoutException {

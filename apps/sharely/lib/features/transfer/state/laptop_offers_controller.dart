@@ -123,7 +123,9 @@ class LaptopOffersController extends Notifier<List<IncomingTransferView>> {
         totalBytes: offer.totalBytes,
       ),
     ];
-    if (_alwaysAccepts(laptop.deviceId)) accept(transferId);
+    if (_alwaysAccepts(laptop.deviceId) && canAcceptWithoutAsking(offer)) {
+      accept(transferId);
+    }
   }
 
   // Read fresh: the connection's copy of the laptop predates the setting.

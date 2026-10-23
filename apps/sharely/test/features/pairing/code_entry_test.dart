@@ -10,8 +10,14 @@ import 'package:sharely/features/pairing/state/phone_pairing_controller.dart';
 import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 FoundLaptop _laptopAt(String host, String name) => (
-  endpoint: DeviceEndpoint(host: InternetAddress(host), port: 53891),
+  endpoint: DeviceEndpoint(
+    host: InternetAddress(host),
+    port: 53891,
+    certFingerprint: testFingerprint,
+  ),
   hello: HelloMessage(
     deviceId: 'laptop_${host.replaceAll('.', '')}_000000',
     deviceName: name,

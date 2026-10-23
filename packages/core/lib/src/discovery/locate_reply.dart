@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:sharely_core/src/discovery/discovery_datagram.dart';
-import 'package:sharely_core/src/pairing/device_endpoint.dart';
+import 'package:sharely_core/src/pairing/lan_address.dart';
 import 'package:sharely_core/src/security/constant_time.dart';
 
 const _type = 'located';
@@ -17,20 +18,23 @@ const _proofChars = 64;
 final class LocateReply {
   const new({
     required this.deviceId,
-    required this.endpoint,
+    required this.host,
+    required this.port,
     required this.proof,
   });
 
   factory signed({
     required String nonce,
     required String deviceId,
-    required DeviceEndpoint endpoint,
+    required InternetAddress host,
+    required int port,
     required String authToken,
   }) {
     return LocateReply(
       deviceId: deviceId,
-      endpoint: endpoint,
-      proof: _computeProof(nonce, deviceId, endpoint, authToken),
+      host: host,
+      port: port,
+      proof: _computeProof(nonce, deviceId, host, port, authToken),
     );
   }
 
@@ -47,10 +51,8 @@ final class LocateReply {
       });
     return LocateReply(
       deviceId: fields.id('deviceId'),
-      endpoint: DeviceEndpoint.parse(
-        host: fields.string('host', maxLength: 15),
-        port: fields.integer('port', min: 0, max: 65535),
-      ),
+      host: parsePrivateLanHost(fields.string('host', maxLength: 15)),
+      port: parseServicePort(fields.integer('port', min: 0, max: 65535)),
       proof: fields.string(
         'proof',
         minLength: _proofChars,
@@ -62,21 +64,22 @@ final class LocateReply {
   final String deviceId;
 
   /// Covered by the proof, so a relayed reply cannot redirect the phone.
-  final DeviceEndpoint endpoint;
+  final InternetAddress host;
+  final int port;
 
   final String proof;
 
   bool isProofValid({required String nonce, required String authToken}) {
     return constantTimeEquals(
       proof,
-      _computeProof(nonce, deviceId, endpoint, authToken),
+      _computeProof(nonce, deviceId, host, port, authToken),
     );
   }
 
   List<int> encode() => encodeDiscoveryDatagram(_type, {
     'deviceId': deviceId,
-    'host': endpoint.host.address,
-    'port': endpoint.port,
+    'host': host.address,
+    'port': port,
     'proof': proof,
   });
 }
@@ -84,12 +87,13 @@ final class LocateReply {
 String _computeProof(
   String nonce,
   String deviceId,
-  DeviceEndpoint endpoint,
+  InternetAddress host,
+  int port,
   String authToken,
 ) {
   final signedText =
       'sharely-locate-v1\n$nonce\n$deviceId\n'
-      '${endpoint.host.address}\n${endpoint.port}';
+      '${host.address}\n$port';
   return Hmac(
     sha256,
     utf8.encode(authToken),

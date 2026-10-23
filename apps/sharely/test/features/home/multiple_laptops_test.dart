@@ -12,6 +12,8 @@ import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely/features/transfer/state/transfer_in_flight.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+import '../../support/test_tls.dart';
+
 const _authToken = 'auth_0123456789abcdef0123456789abcdef';
 const _phoneHello = HelloMessage(
   deviceId: 'phone_0123456789abc',
@@ -49,6 +51,7 @@ class _Laptop {
     final server = await SharelyServer.start(
       address: InternetAddress.loopbackIPv4,
       preferredPort: 0,
+      identity: testIdentity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => null,
         localHello: hello,
@@ -65,7 +68,11 @@ class _Laptop {
       hello,
       authToken: _authToken,
       pairedAt: DateTime.utc(2026, 10, 5),
-      endpoint: DeviceEndpoint(host: server.address, port: server.port),
+      endpoint: DeviceEndpoint(
+        host: server.address,
+        port: server.port,
+        certFingerprint: testIdentity.fingerprint,
+      ),
     );
     final laptop = _Laptop._(record, receiver.hub, server, receiver, sender);
     addTearDown(laptop._stop);
@@ -137,6 +144,8 @@ void main() {
         phone.read(pairedDevicesProvider).value?.map((d) => d.deviceName);
 
     setUp(() async {
+      // The widget tests below make Flutter stub out HTTP for this file.
+      HttpOverrides.global = null;
       office = await _Laptop.start('Office');
       home = await _Laptop.start('Home');
       phone = ProviderContainer(

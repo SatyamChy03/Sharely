@@ -23,6 +23,8 @@ class TransferReceiver {
     required this.saveDirectory,
     ControlHub? hub,
     this.maxPendingOffersPerDevice = 3,
+    this.maxOpenTransfersPerDevice = 8,
+    this.offerLifetime = const Duration(minutes: 5),
     this.resumeWindow = defaultResumeWindow,
     this.dataIdleTimeout = defaultDataIdleTimeout,
   }) : hub = hub ?? ControlHub() {
@@ -38,6 +40,13 @@ class TransferReceiver {
 
   /// Stops one paired device from flooding the screen with prompts.
   final int maxPendingOffersPerDevice;
+
+  /// Caps unanswered and running transfers together, so a device whose
+  /// offers are accepted automatically still cannot open them without end.
+  final int maxOpenTransfersPerDevice;
+
+  /// An offer nobody answers is withdrawn after this long.
+  final Duration offerLifetime;
 
   /// How long an accepted transfer may receive nothing before it is ended.
   final Duration resumeWindow;
@@ -81,6 +90,7 @@ class TransferReceiver {
     final transfer = _transfers.remove(transferId);
     if (transfer == null) return;
     transfer.isEnded = true;
+    transfer.stallTimer?.cancel();
     hub.send(
       transfer.sender.deviceId,
       TransferDecisionMessage.reject(transferId),
@@ -125,23 +135,27 @@ class TransferReceiver {
   }
 
   void _registerOffer(PairedDevice sender, OfferMessage offer) {
-    final pendingFromSender = _transfers.values.where(
-      (transfer) =>
-          transfer.isFrom(sender) &&
-          transfer.stage == IncomingTransferStage.awaitingDecision,
+    final fromSender = _transfers.values.where(
+      (transfer) => transfer.isFrom(sender),
+    );
+    final pendingFromSender = fromSender.where(
+      (transfer) => transfer.stage == IncomingTransferStage.awaitingDecision,
     );
     if (_transfers.containsKey(offer.transferId) ||
-        pendingFromSender.length >= maxPendingOffersPerDevice) {
+        pendingFromSender.length >= maxPendingOffersPerDevice ||
+        fromSender.length >= maxOpenTransfersPerDevice) {
       hub.send(
         sender.deviceId,
         TransferDecisionMessage.reject(offer.transferId),
       );
       return;
     }
-    _transfers[offer.transferId] = IncomingTransfer(
-      sender: sender,
-      offer: offer,
-    );
+    final transferId = offer.transferId;
+    _transfers[transferId] = IncomingTransfer(sender: sender, offer: offer)
+      ..stallTimer = Timer(
+        offerLifetime,
+        () => _end(transferId, TransferFailure.timedOut, notifySender: true),
+      );
     _emit(IncomingOfferReceived(sender: sender, offer: offer));
   }
 

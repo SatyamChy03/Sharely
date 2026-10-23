@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:sharely_core/src/net/bounded_body.dart';
-import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/pairing/paired_device.dart';
 import 'package:sharely_core/src/pairing/pairing_exception.dart';
 import 'package:sharely_core/src/pairing/pairing_invite.dart';
@@ -24,10 +23,15 @@ class PairingClient {
     required PairingInvite invite,
     required HelloMessage localHello,
   }) async {
-    final client = HttpClient()..connectionTimeout = timeout;
+    // Pinned, so the secret and the token it buys are sent only to the
+    // laptop whose code was scanned or chosen.
+    final client = invite.endpoint.createHttpClient(connectionTimeout: timeout);
     try {
       final body = await _postPairingRequest(client, invite, localHello);
       return _parseReply(body, invite);
+    } on TlsException {
+      // Something else answered at the laptop's address.
+      throw const PairingException(PairingFailure.invalidResponse);
     } on SocketException {
       throw const PairingException(PairingFailure.unreachable);
     } on TimeoutException {
@@ -46,11 +50,7 @@ class PairingClient {
     PairingInvite invite,
     HelloMessage localHello,
   ) async {
-    final request = await client.post(
-      invite.host.address,
-      invite.port,
-      '/v1/pair',
-    );
+    final request = await client.postUrl(invite.endpoint.httpsUri('/v1/pair'));
     request.headers.contentType = ContentType.json;
     request.write(
       jsonEncode({'secret': invite.token, 'hello': localHello.toJson()}),
@@ -78,7 +78,7 @@ class PairingClient {
       laptopHello,
       authToken: authToken,
       pairedAt: DateTime.now(),
-      endpoint: DeviceEndpoint(host: invite.host, port: invite.port),
+      endpoint: invite.endpoint,
     );
   }
 }

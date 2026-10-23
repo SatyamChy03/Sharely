@@ -34,6 +34,18 @@ void main() {
       expect(sanitizeFileName(disguised), 'invoicegpj.exe');
     });
 
+    test('strips the Arabic letter mark, another direction control', () {
+      final arabicLetterMark = String.fromCharCode(0x061C);
+      expect(sanitizeFileName('a${arabicLetterMark}b.txt'), 'ab.txt');
+    });
+
+    test('replaces invisible control and line-break characters', () {
+      final hidden = [0x85, 0x9B, 0x2028, 0x2029].map(String.fromCharCode);
+      for (final character in hidden) {
+        expect(sanitizeFileName('a${character}b.txt'), 'a_b.txt');
+      }
+    });
+
     test('limits long names to 240 bytes and keeps the extension', () {
       final result = sanitizeFileName('${'é' * 300}.pdf');
       expect(utf8.encode(result).length, lessThanOrEqualTo(240));

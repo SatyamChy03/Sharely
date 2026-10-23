@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:sharely/app/storage/trust_store_provider.dart';
 import 'package:sharely/features/pairing/state/laptop_pairing_state.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
@@ -43,6 +45,7 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
   SharelyServer? _server;
   DiscoveryResponder? _discovery;
   late HelloMessage _localHello;
+  TlsIdentity? _identity;
   Timer? _expiryTimer;
 
   @override
@@ -51,8 +54,11 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
     if (address == null) return const LaptopNotOnNetwork();
     final localHello = await ref.watch(localHelloProvider.future);
     _localHello = localHello;
+    // Kept across restarts of the server: phones pin this certificate.
+    final identity = _identity ??= await _loadTlsIdentity();
     final server = await SharelyServer.start(
       address: address,
+      identity: identity,
       pairingHandler: PairingRequestHandler(
         currentSession: () => _session,
         localHello: localHello,
@@ -66,11 +72,13 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
     );
     _server = server;
     _discovery = await _startDiscovery(server, localHello.deviceId);
-    ref.onDispose(() {
-      _expiryTimer?.cancel();
-      _discovery?.stop();
-      unawaited(server.stop());
-    });
+    ref
+      ..listen(pairedDevicesProvider, _dropRevokedDevices)
+      ..onDispose(() {
+        _expiryTimer?.cancel();
+        _discovery?.stop();
+        unawaited(server.stop());
+      });
     final pairedDevices = await ref.read(pairedDevicesProvider.future);
     if (pairedDevices.isNotEmpty) {
       return LaptopPairedWithPhone(pairedDevices.last);
@@ -105,12 +113,23 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
         host: _server!.address,
         port: _server!.port,
         token: session.token,
+        certFingerprint: _identity!.fingerprint,
         deviceId: _localHello.deviceId,
         deviceName: _localHello.deviceName,
       ),
       code: session.code,
       expiresAt: session.expiresAt,
     );
+  }
+
+  Future<TlsIdentity> _loadTlsIdentity() async {
+    try {
+      return await ref.read(trustStoreProvider).loadOrCreateTlsIdentity();
+    } on PlatformException catch (error) {
+      // Still encrypted this session; phones pair again after a restart.
+      _log.severe('Secure storage is unavailable for the certificate', error);
+      return TlsIdentity.generate();
+    }
   }
 
   /// Lets a paired phone find this server after the address changes.
@@ -121,13 +140,35 @@ class LaptopPairingController extends AsyncNotifier<LaptopPairingState> {
     try {
       return await DiscoveryResponder.start(
         localDeviceId: localDeviceId,
-        serverEndpoint: DeviceEndpoint(host: server.address, port: server.port),
+        serverEndpoint: DeviceEndpoint(
+          host: server.address,
+          port: server.port,
+          certFingerprint: _identity!.fingerprint,
+        ),
         findPairedDevice: _findPairedDevice,
       );
     } on SocketException catch (error) {
       // Pairing and transfers still work; only re-finding the laptop is lost.
       _log.warning('Discovery port is unavailable', error);
       return null;
+    }
+  }
+
+  /// Removing a phone, or pairing it again, ends the connection its old
+  /// token opened; new requests are already refused by [_findPairedDevice].
+  void _dropRevokedDevices(
+    AsyncValue<List<PairedDevice>>? before,
+    AsyncValue<List<PairedDevice>> after,
+  ) {
+    final stillTrusted = {
+      for (final device in after.value ?? const <PairedDevice>[])
+        device.deviceId: device.authToken,
+    };
+    final hub = ref.read(transferReceiverProvider).hub;
+    for (final device in before?.value ?? const <PairedDevice>[]) {
+      if (stillTrusted[device.deviceId] != device.authToken) {
+        hub.disconnect(device.deviceId);
+      }
     }
   }
 

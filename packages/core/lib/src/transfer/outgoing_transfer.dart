@@ -8,6 +8,7 @@ import 'package:sharely_core/src/transfer/checksummed_file_stream.dart';
 import 'package:sharely_core/src/transfer/control_connection.dart';
 import 'package:sharely_core/src/transfer/outgoing_file.dart';
 import 'package:sharely_core/src/transfer/outgoing_transfer_update.dart';
+import 'package:sharely_core/src/transfer/parallel_settings.dart';
 import 'package:sharely_core/src/transfer/peer_link.dart';
 import 'package:sharely_core/src/transfer/resume_point.dart';
 import 'package:sharely_core/src/transfer/resume_settings.dart';
@@ -32,6 +33,7 @@ class OutgoingTransfer {
     required this._reconnect,
     required this._resumeWindow,
     required this._retryDelay,
+    required this._parallelFiles,
   }) : transferId = generateSecureId();
 
   /// Starts sending [files] to the laptop at [endpoint] right away.
@@ -47,6 +49,7 @@ class OutgoingTransfer {
     PeerReconnect? reconnect,
     Duration resumeWindow = defaultResumeWindow,
     Duration retryDelay = const Duration(seconds: 1),
+    int parallelFiles = defaultParallelFiles,
   }) {
     final transfer = OutgoingTransfer._(
       files: List.unmodifiable(files),
@@ -56,6 +59,7 @@ class OutgoingTransfer {
       reconnect: reconnect,
       resumeWindow: resumeWindow,
       retryDelay: retryDelay,
+      parallelFiles: parallelFiles.clamp(1, maxParallelFilesPerTransfer),
     );
     // Deferred one turn so callers can listen to [updates] before the first.
     transfer._done = Future(transfer._run);
@@ -69,6 +73,7 @@ class OutgoingTransfer {
   final PeerReconnect? _reconnect;
   final Duration _resumeWindow;
   final Duration _retryDelay;
+  final int _parallelFiles;
 
   final _updates = StreamController<OutgoingTransferUpdate>.broadcast();
   final _accepted = Completer<void>();
@@ -78,7 +83,9 @@ class OutgoingTransfer {
   late final Future<void> _done;
   PeerLink _link;
   StreamSubscription<ProtocolMessage>? _messages;
-  HttpClientRequest? _activeUpload;
+  final _activeUploads = <HttpClientRequest>{};
+  final _bytesSentByFile = <int, int>{};
+  Future<void>? _linkBeingRestored;
   TransferFailure? _stopReason;
 
   Stream<OutgoingTransferUpdate> get updates => _updates.stream;
@@ -105,11 +112,7 @@ class OutgoingTransfer {
             mimeType: file.mimeType,
           ),
       ]);
-      var bytesBefore = 0;
-      for (var index = 0; index < files.length; index++) {
-        await _uploadFileWithResume(index, bytesBefore);
-        bytesBefore += files[index].sizeBytes;
-      }
+      await _uploadEveryFile();
       _emit(const OutgoingTransferCompleted());
     } on TransferException catch (error) {
       _emit(OutgoingTransferFailed(error.failure));
@@ -134,7 +137,7 @@ class OutgoingTransfer {
         // An unanswered offer dies with its connection; an accepted one is
         // only paused, so just break the stuck upload loose.
         if (!_accepted.isCompleted) return _stop(TransferFailure.unreachable);
-        _activeUpload?.abort();
+        _abortUploads();
       }),
     );
   }
@@ -157,12 +160,42 @@ class OutgoingTransfer {
     );
   }
 
-  Future<void> _uploadFileWithResume(int index, int bytesBefore) async {
-    var offset = 0;
+  /// Sends a few files at a time, each on its own connection. The first
+  /// failure stops the others, and is the one reported.
+  Future<void> _uploadEveryFile() async {
+    var nextIndex = 0;
+    (Object, StackTrace)? firstFailure;
+    Future<void> uploadUntilNoneLeft() async {
+      try {
+        while (nextIndex < files.length) {
+          await _uploadFileWithResume(nextIndex++);
+        }
+      } on Object catch (error, stackTrace) {
+        if (firstFailure != null) return;
+        firstFailure = (error, stackTrace);
+        if (error is TransferException) {
+          _stop(error.failure);
+        } else {
+          cancel();
+        }
+      }
+    }
+
     _sinceLastByte
       ..reset()
       ..start();
-    while (!await _uploadFile(index, bytesBefore, offset)) {
+    await Future.wait([
+      for (var worker = 0; worker < _parallelFiles; worker++)
+        uploadUntilNoneLeft(),
+    ]);
+    if (firstFailure case (final error, final stackTrace)?) {
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> _uploadFileWithResume(int index) async {
+    var offset = 0;
+    while (!await _uploadFile(index, offset)) {
       _emit(const OutgoingTransferReconnecting());
       final held = await _findResumePoint(index);
       // The laptop saved the file but its answer never reached us.
@@ -173,22 +206,24 @@ class OutgoingTransfer {
 
   /// Sends file [index] from [offset]. Returns false when the upload broke
   /// off and is worth resuming.
-  Future<bool> _uploadFile(int index, int bytesBefore, int offset) async {
+  Future<bool> _uploadFile(int index, int offset) async {
     _throwIfStopped();
     final file = files[index];
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    final client = _link.endpoint.createHttpClient();
+    HttpClientRequest? upload;
     try {
       final request = await client.putUrl(
-        _link.endpoint.httpUri(transferFilePath(transferId, index)),
+        _link.endpoint.httpsUri(transferFilePath(transferId, index)),
       );
-      _activeUpload = request;
+      upload = request;
+      _activeUploads.add(request);
       _throwIfStopped();
       _authHeaders.forEach(request.headers.set);
       request.headers
         ..contentType = ContentType.binary
         ..set(resumeOffsetHeader, offset);
       request.contentLength = file.sizeBytes - offset + uploadChecksumBytes;
-      await request.addStream(_readFrom(file, offset, bytesBefore));
+      await request.addStream(_readFrom(index, offset));
       final response = await request.close();
       await response.drain<void>();
       return _isUploadSaved(response.statusCode);
@@ -198,23 +233,30 @@ class OutgoingTransfer {
       _throwIfStopped();
       return false;
     } finally {
-      _activeUpload = null;
+      _activeUploads.remove(upload);
       client.close(force: true);
     }
   }
 
-  Stream<List<int>> _readFrom(OutgoingFile file, int offset, int bytesBefore) {
-    var bytesSent = bytesBefore + offset;
+  Stream<List<int>> _readFrom(int index, int offset) {
+    // A resumed file counts again from the byte the laptop already holds.
+    _bytesSentByFile[index] = offset;
     return readFileWithChecksum(
-      file,
+      files[index],
       offset: offset,
       shouldStop: () => _stopReason != null,
       onBytesYielded: (byteCount) {
-        bytesSent += byteCount;
+        _bytesSentByFile.update(index, (sent) => sent + byteCount);
         _sinceLastByte.reset();
-        _reportSending(bytesSent);
+        _reportSending();
       },
     );
+  }
+
+  void _abortUploads() {
+    for (final upload in [..._activeUploads]) {
+      upload.abort();
+    }
   }
 
   bool _isUploadSaved(int statusCode) {
@@ -245,7 +287,8 @@ class OutgoingTransfer {
         continue;
       }
       final held = await askResumePoint(
-        _link.endpoint.httpUri(transferOffsetPath(transferId, index)),
+        _link.endpoint,
+        transferOffsetPath(transferId, index),
         authHeaders: _authHeaders,
         fileSizeBytes: files[index].sizeBytes,
       );
@@ -253,7 +296,11 @@ class OutgoingTransfer {
     }
   }
 
-  Future<void> _restoreLink() async {
+  // Every paused upload waits on the same reconnect, not one each.
+  Future<void> _restoreLink() => _linkBeingRestored ??= _awaitNewLink()
+      .whenComplete(() => _linkBeingRestored = null);
+
+  Future<void> _awaitNewLink() async {
     final link = await awaitNewLink(
       _reconnect,
       timeLeft: _resumeWindow - _sinceLastByte.elapsed,
@@ -285,7 +332,7 @@ class OutgoingTransfer {
     if (_stopped.isCompleted) return;
     _stopReason = reason;
     _stopped.complete(reason);
-    _activeUpload?.abort();
+    _abortUploads();
   }
 
   void _throwIfStopped() {
@@ -293,7 +340,11 @@ class OutgoingTransfer {
     if (reason != null) throw TransferException(reason);
   }
 
-  void _reportSending(int bytesSent) {
+  void _reportSending() {
+    final bytesSent = _bytesSentByFile.values.fold(
+      0,
+      (sum, sent) => sum + sent,
+    );
     final isLastByte = bytesSent == totalBytes;
     if (!isLastByte &&
         _sinceLastProgress.isRunning &&

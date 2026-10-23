@@ -16,6 +16,7 @@
         android:label="sharely"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:fullBackupContent="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

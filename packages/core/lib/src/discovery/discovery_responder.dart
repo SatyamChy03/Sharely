@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:sharely_core/src/discovery/discovery_datagram.dart';
 import 'package:sharely_core/src/discovery/locate_query.dart';
 import 'package:sharely_core/src/discovery/locate_reply.dart';
 import 'package:sharely_core/src/pairing/device_endpoint.dart';
@@ -32,6 +33,7 @@ class DiscoveryResponder {
       bindAddress ?? InternetAddress.anyIPv4,
       port,
     );
+    if (bindAddress == null) await _joinDiscoveryGroup(socket);
     final responder = DiscoveryResponder._(socket);
     socket.listen((event) {
       if (event != RawSocketEvent.read) return;
@@ -60,6 +62,25 @@ class DiscoveryResponder {
   }
 }
 
+/// Listens for the group on every network the laptop is on. Who may be
+/// answered is unchanged: [_answer] still replies to paired devices only.
+Future<void> _joinDiscoveryGroup(RawDatagramSocket socket) async {
+  final interfaces = await NetworkInterface.list(
+    type: InternetAddressType.IPv4,
+    includeLoopback: true,
+  );
+  for (final interface in interfaces) {
+    try {
+      socket.joinMulticast(discoveryMulticastGroup, interface);
+    } on OSError {
+      // An adapter without multicast; broadcast and direct asks still work.
+      continue;
+    } on SocketException {
+      continue;
+    }
+  }
+}
+
 LocateReply? _answer(
   Datagram datagram,
   String localDeviceId,
@@ -79,7 +100,8 @@ LocateReply? _answer(
   return LocateReply.signed(
     nonce: query.nonce,
     deviceId: localDeviceId,
-    endpoint: serverEndpoint,
+    host: serverEndpoint.host,
+    port: serverEndpoint.port,
     authToken: phone.authToken,
   );
 }

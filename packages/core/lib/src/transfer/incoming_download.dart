@@ -8,6 +8,7 @@ import 'package:sharely_core/src/transfer/control_connection.dart';
 import 'package:sharely_core/src/transfer/guarded_stream.dart';
 import 'package:sharely_core/src/transfer/incoming_file_writer.dart';
 import 'package:sharely_core/src/transfer/incoming_transfer_event.dart';
+import 'package:sharely_core/src/transfer/parallel_settings.dart';
 import 'package:sharely_core/src/transfer/peer_link.dart';
 import 'package:sharely_core/src/transfer/resume_settings.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
@@ -15,6 +16,9 @@ import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:sharely_core/src/transfer/upload_checksum.dart';
 
 const _progressReportInterval = Duration(milliseconds: 100);
+
+/// One request in flight, and the switch that breaks it off.
+typedef _Attempt = ({HttpClient client, Completer<void> broken});
 
 /// Phone side of one receive: accept the laptop's offer, then download and
 /// verify each file.
@@ -33,6 +37,7 @@ class IncomingDownload {
     required this._resumeWindow,
     required this._retryDelay,
     required this._dataIdleTimeout,
+    required this._parallelFiles,
   });
 
   /// Accepts [offer] and starts downloading from [endpoint] right away.
@@ -49,6 +54,7 @@ class IncomingDownload {
     Duration resumeWindow = defaultResumeWindow,
     Duration retryDelay = const Duration(seconds: 1),
     Duration dataIdleTimeout = defaultDataIdleTimeout,
+    int parallelFiles = defaultParallelFiles,
   }) {
     final download = IncomingDownload._(
       offer: offer,
@@ -59,6 +65,7 @@ class IncomingDownload {
       resumeWindow: resumeWindow,
       retryDelay: retryDelay,
       dataIdleTimeout: dataIdleTimeout,
+      parallelFiles: parallelFiles.clamp(1, maxParallelFilesPerTransfer),
     );
     // Deferred one turn so callers can listen to [events] before the first.
     download._done = Future(download._run);
@@ -72,6 +79,7 @@ class IncomingDownload {
   final Duration _resumeWindow;
   final Duration _retryDelay;
   final Duration _dataIdleTimeout;
+  final int _parallelFiles;
 
   final _events = StreamController<IncomingTransferEvent>.broadcast();
   final _stopped = Completer<TransferFailure>();
@@ -80,9 +88,9 @@ class IncomingDownload {
   late final Future<void> _done;
   PeerLink _link;
   StreamSubscription<ProtocolMessage>? _messages;
-  HttpClient? _activeClient;
-  Completer<void>? _attemptBroken;
-  PartialIncomingFile? _unfinished;
+  final _attempts = <_Attempt>{};
+  final _unfinished = <PartialIncomingFile>{};
+  Future<void>? _linkBeingRestored;
   TransferFailure? _stopReason;
   bool _wasStoppedByLaptop = false;
   int _bytesReceived = 0;
@@ -131,12 +139,39 @@ class IncomingDownload {
     _link.connection.send(TransferDecisionMessage.accept(_transferId));
     final directory = await _saveDirectory();
     await directory.create(recursive: true);
-    final savedFiles = <File>[];
-    for (var index = 0; index < offer.files.length; index++) {
-      savedFiles.add(await _downloadFile(index, directory));
+    final savedFiles = List<File?>.filled(offer.files.length, null);
+    var nextIndex = 0;
+    (Object, StackTrace)? firstFailure;
+    Future<void> downloadUntilNoneLeft() async {
+      try {
+        while (nextIndex < savedFiles.length) {
+          final index = nextIndex++;
+          savedFiles[index] = await _downloadFile(index, directory);
+        }
+      } on Object catch (error, stackTrace) {
+        if (firstFailure != null) return;
+        firstFailure = (error, stackTrace);
+        // One failure ends the downloads still running beside it.
+        _stop(
+          error is TransferException ? error.failure : TransferFailure.refused,
+        );
+      }
+    }
+
+    _sinceLastByte
+      ..reset()
+      ..start();
+    // A few files at a time, each on its own connection.
+    await Future.wait([
+      for (var worker = 0; worker < _parallelFiles; worker++)
+        downloadUntilNoneLeft(),
+    ]);
+    if (firstFailure case (final error, final stackTrace)?) {
+      Error.throwWithStackTrace(error, stackTrace);
     }
     _throwIfStopped();
-    return List.unmodifiable(savedFiles);
+    // Kept in offer order, whatever order the downloads finished in.
+    return List.unmodifiable(savedFiles.whereType<File>());
   }
 
   Future<File> _downloadFile(int index, Directory directory) async {
@@ -145,15 +180,12 @@ class IncomingDownload {
       directory,
       offer.files[index],
     );
-    _unfinished = partial;
-    _sinceLastByte
-      ..reset()
-      ..start();
+    _unfinished.add(partial);
     while (!await _downloadRest(index, partial)) {
       _emit(IncomingTransferInterrupted(_transferId));
       await _waitToRetry();
     }
-    _unfinished = null;
+    _unfinished.remove(partial);
     return partial.file;
   }
 
@@ -161,13 +193,12 @@ class IncomingDownload {
   /// broke off and is worth resuming.
   Future<bool> _downloadRest(int index, PartialIncomingFile partial) async {
     _throwIfStopped();
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 8)
+    final client = _link.endpoint.createHttpClient()
       // The declared length must describe the bytes exactly as they arrive.
       ..autoUncompress = false;
     final broken = Completer<void>();
-    _activeClient = client;
-    _attemptBroken = broken;
+    final attempt = (client: client, broken: broken);
+    _attempts.add(attempt);
     try {
       // Raced, because closing a client does not always wake a request that
       // is still connecting.
@@ -177,7 +208,7 @@ class IncomingDownload {
           (_) => throw const TransferInterrupted(),
         ),
       ]);
-      if (!_isRestOffered(response, partial)) {
+      if (!await _isRestOffered(response, partial)) {
         await response.drain<void>();
         return false;
       }
@@ -200,8 +231,7 @@ class IncomingDownload {
       _throwIfStopped();
       return false;
     } finally {
-      _activeClient = null;
-      _attemptBroken = null;
+      _attempts.remove(attempt);
       client.close(force: true);
     }
   }
@@ -212,20 +242,19 @@ class IncomingDownload {
     int offset,
   ) async {
     final request = await client.getUrl(
-      _link.endpoint.httpUri(transferFilePath(_transferId, index)),
+      _link.endpoint.httpsUri(transferFilePath(_transferId, index)),
     );
     _authHeaders.forEach(request.headers.set);
     request.headers.set(resumeOffsetHeader, offset);
     return await request.close();
   }
 
-  bool _isRestOffered(
+  Future<bool> _isRestOffered(
     HttpClientResponse response,
     PartialIncomingFile partial,
-  ) {
-    // The laptop gave the transfer up while we were away.
+  ) async {
     if (response.statusCode == HttpStatus.notFound) {
-      throw const TransferException(TransferFailure.unreachable);
+      await _failAsGivenUp();
     }
     if (response.statusCode != HttpStatus.ok) return false;
     final restBytes = partial.expected.sizeBytes - partial.bytesWritten;
@@ -233,6 +262,18 @@ class IncomingDownload {
       throw const TransferException(TransferFailure.corrupted);
     }
     return true;
+  }
+
+  /// The laptop no longer knows the transfer. Its cancel travels on the
+  /// control connection and can land a moment later, so it gets a chance
+  /// to say why before this counts as the laptop having gone away.
+  Future<Never> _failAsGivenUp() async {
+    await Future.any([
+      _stopped.future,
+      Future<void>.delayed(const Duration(milliseconds: 300)),
+    ]);
+    _throwIfStopped();
+    throw const TransferException(TransferFailure.unreachable);
   }
 
   /// Pauses before the next attempt, restoring the link if it was lost.
@@ -245,6 +286,13 @@ class IncomingDownload {
     await Future.any([Future<void>.delayed(_retryDelay), _stopped.future]);
     _throwIfStopped();
     if (_link.connection.isOpen) return;
+    // Every paused download waits on the same reconnect, not one each.
+    await (_linkBeingRestored ??= _restoreLink().whenComplete(
+      () => _linkBeingRestored = null,
+    ));
+  }
+
+  Future<void> _restoreLink() async {
     final link = await awaitNewLink(
       _reconnect,
       timeLeft: _resumeWindow - _sinceLastByte.elapsed,
@@ -292,13 +340,16 @@ class IncomingDownload {
   }
 
   void _breakAttempt() {
-    final broken = _attemptBroken;
-    if (broken != null && !broken.isCompleted) broken.complete();
-    _activeClient?.close(force: true);
+    for (final attempt in [..._attempts]) {
+      if (!attempt.broken.isCompleted) attempt.broken.complete();
+      attempt.client.close(force: true);
+    }
   }
 
   Future<void> _fail(TransferFailure reason) async {
-    await _unfinished?.discard();
+    for (final partial in [..._unfinished]) {
+      await partial.discard();
+    }
     if (!_wasStoppedByLaptop) {
       _link.connection.send(TransferDecisionMessage.cancel(_transferId));
     }

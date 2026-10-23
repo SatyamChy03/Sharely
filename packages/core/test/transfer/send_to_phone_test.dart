@@ -7,6 +7,8 @@ import 'package:sharely_core/src/transfer/upload_checksum.dart';
 import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
+
 import 'transfer_harness.dart';
 
 List<int> _randomBytes(int length) {
@@ -97,9 +99,9 @@ Future<int> _get(
   String path, {
   Map<String, String>? headers,
 }) async {
-  final client = HttpClient();
+  final client = harness.endpoint.createHttpClient();
   try {
-    final request = await client.getUrl(harness.endpoint.httpUri(path));
+    final request = await client.getUrl(harness.endpoint.httpsUri(path));
     (headers ?? harness.authHeadersFor(phone)).forEach(request.headers.set);
     final response = await request.close();
     await response.drain<void>();
@@ -111,14 +113,22 @@ Future<int> _get(
 
 /// A stand-in laptop that serves [body] for any download.
 Future<DeviceEndpoint> _serveRawBody(List<int> body, {int? declared}) async {
-  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  final server = await HttpServer.bindSecure(
+    InternetAddress.loopbackIPv4,
+    0,
+    testIdentity.createServerContext(),
+  );
   addTearDown(() => server.close(force: true));
   server.listen((request) async {
     request.response.contentLength = declared ?? body.length;
     request.response.add(body);
     await request.response.close().catchError((Object _) {});
   });
-  return DeviceEndpoint(host: server.address, port: server.port);
+  return DeviceEndpoint(
+    host: server.address,
+    port: server.port,
+    certFingerprint: testIdentity.fingerprint,
+  );
 }
 
 OfferMessage _offerOf(List<int> bytes) => OfferMessage(

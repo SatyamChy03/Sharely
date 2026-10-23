@@ -45,6 +45,15 @@ class ControlHub {
     return true;
   }
 
+  /// Drops [deviceId]'s live connection, as when its pairing is removed:
+  /// a revoked device must not keep talking on a socket it opened earlier.
+  void disconnect(String deviceId) {
+    final connection = _connections.remove(deviceId);
+    if (connection == null) return;
+    unawaited(connection.close());
+    if (!_disconnects.isClosed) _disconnects.add(deviceId);
+  }
+
   Future<void> closeAll() async {
     final open = [..._connections.values];
     _connections.clear();

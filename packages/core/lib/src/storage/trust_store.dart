@@ -1,10 +1,16 @@
+import 'dart:convert';
+
 import 'package:sharely_core/src/pairing/paired_device.dart';
+import 'package:sharely_core/src/protocol/json_fields.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_ids.dart';
 import 'package:sharely_core/src/security/secure_id.dart';
+import 'package:sharely_core/src/security/tls_identity.dart';
 import 'package:sharely_core/src/storage/paired_device_records.dart';
 import 'package:sharely_core/src/storage/secret_store.dart';
 import 'package:sharely_core/src/storage/trust_store_exception.dart';
+
+const int _maxPemChars = 8 * 1024;
 
 /// This device's lasting identity and the devices it trusts.
 class TrustStore {
@@ -14,6 +20,7 @@ class TrustStore {
 
   static const _deviceIdKey = 'sharely.deviceId';
   static const _pairedDevicesKey = 'sharely.pairedDevices';
+  static const _tlsIdentityKey = 'sharely.tlsIdentity';
 
   /// The id other devices know this one by, created on first launch.
   Future<String> loadOrCreateDeviceId() async {
@@ -22,6 +29,30 @@ class TrustStore {
     final newId = generateSecureId();
     await _secrets.write(_deviceIdKey, newId);
     return newId;
+  }
+
+  /// The certificate and key this laptop serves with, created on first
+  /// launch. Phones pin it, so replacing it means pairing them again.
+  Future<TlsIdentity> loadOrCreateTlsIdentity() async {
+    final stored = await _secrets.read(_tlsIdentityKey);
+    if (stored != null) {
+      try {
+        return _decodeTlsIdentity(stored);
+      } on ProtocolException {
+        // Unusable material is replaced, never served.
+      } on TlsIdentityException {
+        // Same: phones will be asked to pair again.
+      }
+    }
+    final identity = TlsIdentity.generate();
+    await _secrets.write(
+      _tlsIdentityKey,
+      jsonEncode({
+        'cert': identity.certificatePem,
+        'key': identity.privateKeyPem,
+      }),
+    );
+    return identity;
   }
 
   /// Throws [TrustStoreException] when the stored list fails validation.
@@ -39,4 +70,21 @@ class TrustStore {
       _secrets.write(_pairedDevicesKey, encodePairedDevices(devices));
 
   Future<void> forgetPairedDevices() => _secrets.delete(_pairedDevicesKey);
+}
+
+TlsIdentity _decodeTlsIdentity(String stored) {
+  final fields = JsonFields(decodeJsonObject(stored))
+    ..requireOnlyKeys(const {'cert', 'key'});
+  return TlsIdentity.fromPem(
+    certificatePem: fields.string(
+      'cert',
+      maxLength: _maxPemChars,
+      allowControlCharacters: true,
+    ),
+    privateKeyPem: fields.string(
+      'key',
+      maxLength: _maxPemChars,
+      allowControlCharacters: true,
+    ),
+  );
 }

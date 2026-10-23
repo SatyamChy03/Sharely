@@ -8,7 +8,8 @@ import 'package:sharely/features/pairing/state/phone_pairing_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
 const _validInvite =
-    'sharely://pair?v=1&h=192.168.1.24&p=53891&t=tok_0123456789abcdef'
+    'sharely://pair?v=2&h=192.168.1.24&p=53891&t=tok_0123456789abcdef'
+    '&f=GC7sBY-wnhn-hzeInIlX3XANDNAagCm_dWCmPH5UdVQ'
     '&id=laptop_0123456789ab&n=Laptop';
 
 final _laptop = PairedDevice(

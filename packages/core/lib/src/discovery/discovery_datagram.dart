@@ -1,8 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:sharely_core/src/protocol/json_fields.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_limits.dart';
+
+/// The group paired phones ask on. Its scope is one site and datagrams to
+/// it travel a single hop, so a question never leaves the local network.
+final InternetAddress discoveryMulticastGroup = InternetAddress(
+  '239.255.83.72',
+);
 
 /// Discovery messages are tiny; anything larger is not one of ours.
 const int maxDiscoveryDatagramBytes = 512;

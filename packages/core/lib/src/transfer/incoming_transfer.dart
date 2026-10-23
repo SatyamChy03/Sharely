@@ -24,14 +24,20 @@ class IncomingTransfer {
   /// Files started but not finished, kept so a broken upload can resume.
   final Map<int, PartialIncomingFile> partials = {};
   final Map<int, ActiveUpload> activeUploads = {};
-  final Set<int> savedFileIndexes = {};
-  final List<File> savedFiles = [];
+  final Map<int, File> savedFilesByIndex = {};
   final Stopwatch sinceLastProgressReport = Stopwatch()..start();
 
   /// Runs while nothing is arriving; ends the transfer when it fires.
   Timer? stallTimer;
 
-  bool get hasAllFiles => savedFiles.length == offer.files.length;
+  bool get hasAllFiles => savedFilesByIndex.length == offer.files.length;
+
+  /// In offer order, whatever order the uploads finished in.
+  List<File> get savedFiles {
+    final byIndex = savedFilesByIndex.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return [for (final saved in byIndex) saved.value];
+  }
 
   bool isFrom(PairedDevice device) => sender.deviceId == device.deviceId;
 

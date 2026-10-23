@@ -2,6 +2,7 @@
 /// TLS pinning. Pure Dart, so it must not import Flutter.
 library;
 
+export 'src/discovery/discovery_datagram.dart' show discoveryMulticastGroup;
 export 'src/discovery/discovery_responder.dart';
 export 'src/discovery/laptop_locator.dart';
 export 'src/history/transfer_history_entry.dart';
@@ -21,11 +22,13 @@ export 'src/protocol/protocol_ids.dart';
 export 'src/protocol/protocol_limits.dart';
 export 'src/protocol/protocol_message.dart';
 export 'src/protocol/quick_text.dart';
+export 'src/security/cert_fingerprint.dart';
 export 'src/security/constant_time.dart';
 export 'src/security/file_name_sanitizer.dart';
 export 'src/security/file_safety_exception.dart';
 export 'src/security/safe_file_creator.dart';
 export 'src/security/secure_id.dart';
+export 'src/security/tls_identity.dart';
 export 'src/server/control_hub.dart';
 export 'src/server/pairing_request_handler.dart' show PairingRequestHandler;
 export 'src/server/request_authenticator.dart' show PairedDeviceLookup;
@@ -38,6 +41,7 @@ export 'src/storage/secret_store.dart';
 export 'src/storage/trust_store.dart';
 export 'src/storage/trust_store_exception.dart';
 export 'src/transfer/auth_headers.dart' show buildAuthHeaders;
+export 'src/transfer/auto_accept.dart';
 export 'src/transfer/control_connection.dart';
 export 'src/transfer/incoming_download.dart';
 export 'src/transfer/incoming_transfer_event.dart';
