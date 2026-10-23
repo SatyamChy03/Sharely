@@ -24,9 +24,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Coming back to the app is when a reconnect is most likely to work.
+    LaptopConnectionController connection() =>
+        ref.read(laptopConnectionProvider.notifier);
+    // A picker or another app in front pauses Sharely; the laptop is told,
+    // and the link is checked the moment the app is back, not assumed.
     _lifecycleListener = AppLifecycleListener(
-      onResume: () => ref.read(laptopConnectionProvider.notifier).retryNow(),
+      onHide: () => connection().reportOnScreen(isOnScreen: false),
+      onShow: () => connection().reportOnScreen(isOnScreen: true),
+      onResume: () => connection().ensureLinked(),
     );
   }
 

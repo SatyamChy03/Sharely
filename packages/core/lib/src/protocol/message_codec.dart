@@ -29,6 +29,9 @@ abstract final class MessageCodec {
       MessageType.text ||
       MessageType.clipboard => TextContentMessage.fromFields(type, fields),
       MessageType.link => LinkMessage.fromFields(fields),
+      MessageType.ping ||
+      MessageType.pong => HeartbeatMessage.fromFields(type, fields),
+      MessageType.presence => PresenceMessage.fromFields(fields),
     };
   }
 }

@@ -7,6 +7,7 @@ import 'package:sharely_core/src/transfer/upload_checksum.dart';
 import 'package:sharely_core/src/transfer/xxh64_accumulator.dart';
 import 'package:test/test.dart';
 
+import '../support/test_tls.dart';
 import 'transfer_harness.dart';
 
 const _transferId = 'transfer_0123456789';
@@ -329,6 +330,104 @@ void main() {
       expect(other.isOpen, isTrue);
       await harness.receiver.close();
       expect(await notes, isEmpty);
+    });
+
+    test(
+      'a phone that goes silent is shown as gone within the limit',
+      () async {
+        // A peer that completes the handshake and then never answers again,
+        // as a frozen app or a phone that left the Wi-Fi does.
+        final silent = await SecureSocket.connect(
+          harness.server.address,
+          harness.server.port,
+          onBadCertificate: (_) => true,
+        );
+        addTearDown(silent.destroy);
+        final headers = harness.authHeadersFor(phone);
+        silent.write(
+          'GET /v1/control HTTP/1.1\r\n'
+          'Host: laptop\r\n'
+          'Upgrade: websocket\r\n'
+          'Connection: Upgrade\r\n'
+          'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+          'Sec-WebSocket-Version: 13\r\n'
+          '${headers.entries.map((h) => '${h.key}: ${h.value}\r\n').join()}'
+          '\r\n',
+        );
+        final hub = harness.receiver.hub;
+        await hub.connects.first.timeout(const Duration(seconds: 5));
+        expect(hub.connectedDeviceIds, {phone.deviceId});
+        final sinceConnected = Stopwatch()..start();
+
+        await hub.disconnects.first.timeout(
+          controlSilenceLimit +
+              controlPingInterval +
+              const Duration(seconds: 2),
+        );
+
+        expect(
+          sinceConnected.elapsed,
+          lessThan(
+            controlSilenceLimit +
+                controlPingInterval +
+                const Duration(seconds: 1),
+          ),
+        );
+        expect(hub.connectedDeviceIds, isEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test('a live link answers when asked, and the app never sees it', () async {
+      final connection = await harness.connect();
+      final seenByLaptop = harness.receiver.hub.messages.toList();
+      final seenByPhone = connection.messages.toList();
+
+      expect(await connection.isAlive(), isTrue);
+
+      await connection.close();
+      await harness.receiver.close();
+      expect(await seenByLaptop, isEmpty);
+      expect(await seenByPhone, isEmpty);
+    });
+
+    test('a link whose other end stopped answering is reported dead', () async {
+      final mute = await HttpServer.bindSecure(
+        InternetAddress.loopbackIPv4,
+        0,
+        testIdentity.createServerContext(),
+      );
+      addTearDown(() => mute.close(force: true));
+      mute.listen((request) async {
+        final socket = await WebSocketTransformer.upgrade(request);
+        // Answers with something, but never with the id it was asked.
+        socket.listen(
+          (_) => socket.add('{"type":"pong","id":"stale_0123456789abcd"}'),
+        );
+      });
+      final connection = await ControlConnection.connect(
+        DeviceEndpoint(
+          host: mute.address,
+          port: mute.port,
+          certFingerprint: testIdentity.fingerprint,
+        ),
+        authHeaders: harness.authHeadersFor(phone),
+      );
+      addTearDown(connection.close);
+
+      final isAlive = await connection.isAlive(
+        timeout: const Duration(milliseconds: 300),
+      );
+
+      expect(isAlive, isFalse);
+      expect(connection.isOpen, isTrue);
+    });
+
+    test('a closed link is not alive', () async {
+      final connection = await harness.connect();
+      await connection.close();
+
+      expect(await connection.isAlive(), isFalse);
     });
 
     test('a device that floods the channel is disconnected', () async {

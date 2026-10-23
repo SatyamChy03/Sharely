@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
@@ -142,4 +144,62 @@ void main() {
     );
     expect(phone.read(laptopConnectionProvider), isA<LaptopUnreachable>());
   });
+
+  test('a failed search for the laptop does not end the retries', () async {
+    var attempts = 0;
+    final phone = await _phoneWith(
+      [
+        _laptop(
+          endpoint: DeviceEndpoint.parse(
+            host: '192.168.1.24',
+            port: 53891,
+            certFingerprint: testFingerprint,
+          ),
+        ),
+      ],
+      connector: (endpoint, authHeaders) async {
+        attempts++;
+        // Not the usual failure: the network refused outright.
+        throw const SocketException('Network is unreachable');
+      },
+      addressLookup: (laptop, localDeviceId) async =>
+          throw const SocketException('Network is unreachable'),
+    );
+    phone.listen(laptopConnectionProvider, (_, _) {}, fireImmediately: true);
+    await pumpEventQueue();
+
+    expect(phone.read(laptopConnectionProvider), isA<LaptopUnreachable>());
+    // The first retry comes after one second.
+    await Future<void>.delayed(const Duration(milliseconds: 1300));
+    expect(attempts, greaterThanOrEqualTo(2));
+  });
+
+  test(
+    'back on screen, an unreachable laptop is tried again at once',
+    () async {
+      var attempts = 0;
+      final phone = await _phoneWith(
+        [
+          _laptop(
+            endpoint: DeviceEndpoint.parse(
+              host: '192.168.1.24',
+              port: 53891,
+              certFingerprint: testFingerprint,
+            ),
+          ),
+        ],
+        connector: (endpoint, authHeaders) async {
+          attempts++;
+          throw const TransferException(TransferFailure.unreachable);
+        },
+      );
+      phone.listen(laptopConnectionProvider, (_, _) {}, fireImmediately: true);
+      await pumpEventQueue();
+
+      phone.read(laptopConnectionProvider.notifier).ensureLinked();
+      await pumpEventQueue();
+
+      expect(attempts, 2);
+    },
+  );
 }

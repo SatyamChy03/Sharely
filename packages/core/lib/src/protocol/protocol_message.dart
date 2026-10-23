@@ -4,11 +4,13 @@ import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_limits.dart';
 
 part 'device_platform.dart';
+part 'heartbeat_message.dart';
 part 'hello_message.dart';
 part 'link_message.dart';
 part 'message_type.dart';
 part 'offer_message.dart';
 part 'offered_file.dart';
+part 'presence_message.dart';
 part 'progress_message.dart';
 part 'text_content_message.dart';
 part 'transfer_decision_message.dart';

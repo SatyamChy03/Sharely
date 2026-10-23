@@ -47,6 +47,8 @@ void _roundTripTests() {
       const TextContentMessage.text('Hello\nthere\twith tabs'),
       const TextContentMessage.clipboard('482913'),
       LinkMessage.parse('https://example.com/path?q=1'),
+      const HeartbeatMessage.ping(_transferId),
+      const HeartbeatMessage.pong(_transferId),
     ].forEach(_expectRoundTrip);
   });
 
@@ -82,6 +84,20 @@ void _malformedFrameTests() {
 }
 
 void _invalidFieldTests() {
+  final badHeartbeats = <String, Map<String, Object?>>{
+    'a ping without an id': {'type': 'ping'},
+    'a ping with a path as its id': {'type': 'ping', 'id': '../../etc/passwd'},
+    'a pong with an extra field': {
+      'type': 'pong',
+      'id': _transferId,
+      'transferId': _transferId,
+    },
+    'a ping with an oversized id': {'type': 'ping', 'id': 'a' * 5000},
+  };
+  for (final MapEntry(key: description, value: json) in badHeartbeats.entries) {
+    test(description, () => _expectRejected(json));
+  }
+
   for (final MapEntry(key: description, value: json)
       in _invalidFieldCases.entries) {
     test(description, () => _expectRejected(json));

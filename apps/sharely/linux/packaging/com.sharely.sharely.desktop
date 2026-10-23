@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Sharely
+GenericName=File transfer
+Comment=Send files, text and links between your phone and laptop over Wi-Fi
+Exec=sharely
+Icon=com.sharely.sharely
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=share;send;files;phone;transfer;
+StartupNotify=true
+StartupWMClass=com.sharely.sharely

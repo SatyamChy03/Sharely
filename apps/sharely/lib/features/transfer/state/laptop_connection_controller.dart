@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:sharely/features/pairing/state/local_identity.dart';
 import 'package:sharely/features/pairing/state/paired_devices.dart';
 import 'package:sharely/features/transfer/state/laptop_connection_state.dart';
 import 'package:sharely_core/sharely_core.dart';
 
+final _log = Logger('LaptopConnection');
+
 // Backs off so a laptop that is off doesn't drain the phone's battery.
-const _retryDelays = [2, 4, 8, 15, 30];
+const _retryDelays = [1, 2, 4, 8, 15, 30];
 
 typedef ControlConnector = Future<ControlConnection> Function(
   DeviceEndpoint endpoint,
@@ -57,7 +60,9 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
   String? _disconnectedLaptopId;
   int _buildCount = 0;
   Timer? _retryTimer;
+  bool _isOnScreen = true;
   int _failedAttempts = 0;
+  int _connectAttempts = 0;
 
   @override
   LaptopConnectionState build() {
@@ -106,14 +111,34 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     ref.invalidateSelf();
   }
 
+  /// Tells the laptop whether Sharely is on screen. Off screen, Android
+  /// may pause the app (while a file is picked, say), and the laptop then
+  /// gives it longer to answer instead of dropping the link.
+  void reportOnScreen({required bool isOnScreen}) {
+    _isOnScreen = isOnScreen;
+    _connection?.send(PresenceMessage(isOnScreen: isOnScreen));
+  }
+
+  /// Makes sure the link is really there, e.g. when the app is back on
+  /// screen or the phone wakes up: retries at once if the laptop was
+  /// unreachable, and tests a link that only looks open.
+  void ensureLinked() {
+    final current = state;
+    if (current is LaptopUnreachable) return retryNow();
+    if (current is! LaptopConnected) return;
+    unawaited(_replaceIfDead(current.laptop, current.connection));
+  }
+
   PairedDevice? get _activeLaptop =>
       (ref.read(pairedDevicesProvider).value ?? const []).lastOrNull;
 
-  /// Skips the backoff, e.g. when the app comes back to the foreground.
+  /// Skips the backoff, e.g. when a transfer is waiting for the link.
   void retryNow() {
     final current = state;
     if (current is! LaptopUnreachable) return;
     _retryTimer?.cancel();
+    // Someone is waiting: the next failures retry quickly again.
+    _failedAttempts = 0;
     state = LaptopConnecting(current.laptop);
     unawaited(_connect(current.laptop, _buildCount));
   }
@@ -122,7 +147,11 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     final endpoint = laptop.endpoint;
     if (endpoint == null) return;
     final localHello = await ref.read(localHelloProvider.future);
-    bool isStale() => !ref.mounted || build != _buildCount;
+    // Two links at once would make the laptop drop one of them; only the
+    // newest attempt may land.
+    final attempt = ++_connectAttempts;
+    bool isStale() =>
+        !ref.mounted || build != _buildCount || attempt != _connectAttempts;
     try {
       final connection = await ref.read(controlConnectorProvider)(
         endpoint,
@@ -133,12 +162,28 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
       );
       if (isStale()) return unawaited(connection.close());
       _adopt(laptop, connection);
-    } on TransferException {
+    } on Exception catch (error) {
+      // Whatever went wrong, the phone keeps trying: a link that stops
+      // retrying can only be brought back by restarting the app.
+      if (error is! TransferException) {
+        _log.warning('Connecting failed: ${error.runtimeType}');
+      }
       if (isStale()) return;
-      if (await _followLaptopToNewAddress(laptop, localHello.deviceId)) return;
+      if (await _hasMoved(laptop, localHello.deviceId)) return;
       if (isStale()) return;
       state = LaptopUnreachable(laptop);
       _scheduleRetry(laptop);
+    }
+  }
+
+  /// Looking for the laptop must never end the retries: right after the
+  /// phone wakes, its network can refuse anything for a moment.
+  Future<bool> _hasMoved(PairedDevice laptop, String localDeviceId) async {
+    try {
+      return await _followLaptopToNewAddress(laptop, localDeviceId);
+    } on Exception catch (error) {
+      _log.warning('Could not look for the laptop: ${error.runtimeType}');
+      return false;
     }
   }
 
@@ -165,6 +210,8 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
     _connection = connection;
     _failedAttempts = 0;
     state = LaptopConnected(laptop, connection);
+    // A link made while the app is off screen says so straight away.
+    if (!_isOnScreen) connection.send(const PresenceMessage(isOnScreen: false));
     unawaited(
       connection.done.then((_) {
         if (!ref.mounted || !identical(_connection, connection)) return;
@@ -173,6 +220,22 @@ class LaptopConnectionController extends Notifier<LaptopConnectionState> {
         _scheduleRetry(laptop);
       }),
     );
+  }
+
+  /// Asks the laptop to answer. A link that stays silent is replaced now;
+  /// one that answers is left alone, so a transfer on it is not disturbed.
+  Future<void> _replaceIfDead(
+    PairedDevice laptop,
+    ControlConnection connection,
+  ) async {
+    if (await connection.isAlive()) return;
+    if (!ref.mounted || !identical(_connection, connection)) return;
+    // Cleared first, so its closing isn't mistaken for a lost link.
+    _connection = null;
+    unawaited(connection.close());
+    _failedAttempts = 0;
+    state = LaptopConnecting(laptop);
+    await _connect(laptop, _buildCount);
   }
 
   void _scheduleRetry(PairedDevice laptop) {

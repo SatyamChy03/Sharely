@@ -121,9 +121,14 @@ Future<List<_Route>> _openRoutes({
     }
     socket
       ..broadcastEnabled = true
-      ..listen((event) {
-        if (event == RawSocketEvent.read) onDatagram(socket.receive());
-      });
+      ..listen(
+        (event) {
+          if (event == RawSocketEvent.read) onDatagram(socket.receive());
+        },
+        // A refused send is reported here, after send() returned; the other
+        // targets and the next round still go out.
+        onError: (Object _) {},
+      );
     routes.add((
       socket: socket,
       destinations: [...targets ?? discoveryDestinationsFrom(source)],

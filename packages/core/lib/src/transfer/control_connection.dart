@@ -5,19 +5,22 @@ import 'package:sharely_core/src/pairing/device_endpoint.dart';
 import 'package:sharely_core/src/protocol/message_codec.dart';
 import 'package:sharely_core/src/protocol/protocol_exception.dart';
 import 'package:sharely_core/src/protocol/protocol_message.dart';
+import 'package:sharely_core/src/security/secure_id.dart';
+import 'package:sharely_core/src/transfer/link_liveness.dart';
 import 'package:sharely_core/src/transfer/transfer_exception.dart';
 import 'package:sharely_core/src/transfer/transfer_paths.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as close_status;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// Detects a peer that vanished without closing (Wi-Fi off, laptop asleep).
-const controlPingInterval = Duration(seconds: 15);
-
 /// More messages than this in one [controlFloodWindow] is not a person
 /// using the app; real use is a handful of offers, answers and notes.
 const maxControlMessagesPerWindow = 120;
 const controlFloodWindow = Duration(seconds: 10);
+
+/// Sent when the peer stopped answering. In the app range, like the one
+/// below, since 1001 "going away" is reserved for the socket itself.
+const silentPeerCloseCode = 4001;
 
 /// Sent when a peer breaks the protocol. Apps may only use 1000 or 3000-4999,
 /// so this mirrors the standard 1008 "policy violation" in the app range.
@@ -27,7 +30,19 @@ const protocolViolationCloseCode = 4008;
 ///
 /// A frame that fails validation closes the connection; it is never trusted.
 class ControlConnection {
-  new(this._channel) {
+  new(
+    this._channel, {
+    LivenessClock? clock,
+    Duration? checkEvery,
+    Duration allowedSilence = controlSilenceLimit,
+  }) {
+    _liveness = LinkLiveness(
+      sendPing: () => send(HeartbeatMessage.ping(generateSecureId())),
+      closeAsDead: () => unawaited(close(silentPeerCloseCode)),
+      clock: clock,
+      checkEvery: checkEvery ?? controlPingInterval,
+      allowedSilence: allowedSilence,
+    );
     _channel.stream.listen(
       _handleFrame,
       onDone: _markClosed,
@@ -39,8 +54,10 @@ class ControlConnection {
   final WebSocketChannel _channel;
   final _messages = StreamController<ProtocolMessage>.broadcast();
   final _closed = Completer<void>();
+  final _awaitedAnswers = <String, Completer<void>>{};
   final _sinceWindowStart = Stopwatch()..start();
   int _messagesInWindow = 0;
+  late final LinkLiveness _liveness;
 
   /// Opens an authenticated control channel to a laptop's server.
   ///
@@ -49,12 +66,13 @@ class ControlConnection {
     DeviceEndpoint endpoint, {
     required Map<String, String> authHeaders,
     Duration timeout = const Duration(seconds: 8),
+    LivenessClock? clock,
+    Duration? checkEvery,
   }) async {
     final client = endpoint.createHttpClient(connectionTimeout: timeout);
     final channel = IOWebSocketChannel.connect(
       endpoint.webSocketUri(controlChannelPath),
       headers: authHeaders,
-      pingInterval: controlPingInterval,
       connectTimeout: timeout,
       customClient: client,
     );
@@ -70,7 +88,7 @@ class ControlConnection {
       // An upgraded socket lives on by itself; the client is done either way.
       client.close();
     }
-    return ControlConnection(channel);
+    return ControlConnection(channel, clock: clock, checkEvery: checkEvery);
   }
 
   Stream<ProtocolMessage> get messages => _messages.stream;
@@ -78,6 +96,28 @@ class ControlConnection {
   Future<void> get done => _closed.future;
 
   bool get isOpen => !_closed.isCompleted;
+
+  /// How long the peer may stay silent before the link counts as lost.
+  Duration get allowedSilence => _liveness.allowedSilence;
+
+  set allowedSilence(Duration limit) => _liveness.allowedSilence = limit;
+
+  /// Asks the peer to answer right now. False when it does not within
+  /// [timeout]: the link is dead, even if the socket has not noticed.
+  Future<bool> isAlive({Duration timeout = const Duration(seconds: 2)}) async {
+    if (!isOpen) return false;
+    final id = generateSecureId();
+    final answered = _awaitedAnswers[id] = Completer<void>();
+    send(HeartbeatMessage.ping(id));
+    try {
+      await answered.future.timeout(timeout);
+      return isOpen;
+    } on TimeoutException {
+      return false;
+    } finally {
+      _awaitedAnswers.remove(id);
+    }
+  }
 
   void send(ProtocolMessage message) {
     if (!isOpen) return;
@@ -91,10 +131,22 @@ class ControlConnection {
 
   void _handleFrame(Object? frame) {
     if (frame is! String || _isFlooding()) return _rejectPeer();
+    _liveness.recordHeard();
+    final ProtocolMessage message;
     try {
-      _messages.add(MessageCodec.decode(frame));
+      message = MessageCodec.decode(frame);
     } on ProtocolException {
-      _rejectPeer();
+      return _rejectPeer();
+    }
+    // Heartbeats are answered here and never reach the app.
+    switch (message) {
+      case HeartbeatMessage(type: MessageType.ping, :final id):
+        send(HeartbeatMessage.pong(id));
+      case HeartbeatMessage(:final id):
+        final answered = _awaitedAnswers[id];
+        if (answered != null && !answered.isCompleted) answered.complete();
+      default:
+        _messages.add(message);
     }
   }
 
@@ -113,6 +165,7 @@ class ControlConnection {
 
   void _markClosed() {
     if (_closed.isCompleted) return;
+    _liveness.stop();
     _closed.complete();
     unawaited(_messages.close());
   }

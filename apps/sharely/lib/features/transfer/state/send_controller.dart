@@ -18,6 +18,9 @@ import 'package:sharely_core/sharely_core.dart';
 
 final _log = Logger('Send');
 
+// A link on the same Wi-Fi is back well within this.
+const _linkReturnTimeout = Duration(seconds: 6);
+
 final sendProvider = NotifierProvider<SendController, SendState>(
   SendController.new,
 );
@@ -39,11 +42,10 @@ class SendController extends Notifier<SendState> {
     final picker = ref.read(sendFilePickerProvider);
     final files = await picker.pickFiles(photosOnly: photosOnly);
     if (files.isEmpty || !ref.mounted) return false;
-    final connection = ref.read(laptopConnectionProvider);
-    final endpoint = connection is LaptopConnected
-        ? connection.laptop.endpoint
-        : null;
-    if (connection is! LaptopConnected || endpoint == null) {
+    final connection = await _awaitLaptop();
+    if (!ref.mounted) return false;
+    final endpoint = connection?.laptop.endpoint;
+    if (connection == null || endpoint == null) {
       await picker.releasePickedFiles();
       return false;
     }
@@ -68,6 +70,28 @@ class SendController extends Notifier<SendState> {
     _track(transfer, notice);
     unawaited(_finish(transfer, notice, picker));
     return true;
+  }
+
+  /// The picker hides the app, and a hidden app lets its link go, so the
+  /// link may still be coming back when the files are chosen. Waits for
+  /// it briefly; null when the laptop is not reachable.
+  Future<LaptopConnected?> _awaitLaptop() async {
+    final current = ref.read(laptopConnectionProvider);
+    if (current is LaptopConnected) return current;
+    if (current is! LaptopConnecting) return null;
+    final settled = Completer<LaptopConnected?>();
+    final subscription = ref.listen(laptopConnectionProvider, (_, next) {
+      if (next is LaptopConnecting || settled.isCompleted) return;
+      settled.complete(next is LaptopConnected ? next : null);
+    });
+    try {
+      return await settled.future.timeout(
+        _linkReturnTimeout,
+        onTimeout: () => null,
+      );
+    } finally {
+      subscription.close();
+    }
   }
 
   /// Sends a note, an OTP or a link straight to the laptop's screen.

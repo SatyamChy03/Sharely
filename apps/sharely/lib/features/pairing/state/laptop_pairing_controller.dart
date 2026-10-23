@@ -18,17 +18,15 @@ const _addressCheckInterval = Duration(seconds: 5);
 
 /// Which address the laptop serves on. Overridable so tests use loopback.
 ///
-/// Routers hand out new addresses over time, so this re-resolves whenever
-/// the current one disappears; the server then restarts on the new one.
+/// Routers hand out new addresses over time and Wi-Fi comes and goes, so
+/// this re-resolves whenever the best address changes; the server then
+/// restarts there.
 final lanAddressProvider = FutureProvider<InternetAddress?>((ref) async {
   final address = (await findLanAddresses()).firstOrNull;
   final addressCheck = Timer.periodic(_addressCheckInterval, (_) async {
     final latest = await findLanAddresses();
     if (!ref.mounted) return;
-    final isStillValid = address == null
-        ? latest.isEmpty
-        : latest.contains(address);
-    if (!isStillValid) ref.invalidateSelf();
+    if (shouldServeElsewhere(address, latest)) ref.invalidateSelf();
   });
   ref.onDispose(addressCheck.cancel);
   return address;

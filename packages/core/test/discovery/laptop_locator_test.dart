@@ -163,6 +163,24 @@ void main() {
     expect(found, _serverEndpoint);
   });
 
+  test('a network that refuses the question is not a crash', () async {
+    // Android answers a blocked app's sends with "Operation not permitted",
+    // reported later on the socket; a send to port 0 fails the same way.
+    final found =
+        await const LaptopLocator(
+          port: 0,
+          rounds: 2,
+          roundTimeout: _fastLocator,
+        ).locate(
+          laptop: _device(_laptopId).copyWith(endpoint: _serverEndpoint),
+          localDeviceId: _phoneId,
+          targets: [InternetAddress.loopbackIPv4],
+          localAddresses: [InternetAddress.loopbackIPv4],
+        );
+
+    expect(found, isNull);
+  });
+
   test('an unpaired device gets no answer', () async {
     final responder = await _startResponder();
 
